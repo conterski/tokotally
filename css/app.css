@@ -1148,40 +1148,69 @@ dialog.centered {
     display: none;
   }
 
-  /* --- line items reflow onto two rows --------------------------- */
+  /* --- line items: one entry per line ----------------------------- */
+  /* Everything on a single row, sized down to fit a 320px screen. The
+     price column is the flexible one; the Line Total is content-sized so
+     a long figure is never truncated. */
+  /* The Line Total column has a floor rather than being purely auto, so
+     it keeps the same width across rows and the price fields line up;
+     max-content still lets an unusually long figure widen it instead of
+     being cut off — money is never truncated. The floor is in ch so it
+     covers the same digit count whatever the font size or decimals
+     setting, rather than a pixel guess that only suits one of them. */
   .item-row {
     grid-template-columns:
-      var(--col-num) minmax(48px, 62px) auto minmax(60px, 1fr)
-      var(--col-disc) 32px;
-    grid-template-areas:
-      'num qty  mult price disc remove'
-      'num hint hint hint  tot  tot';
-    gap: var(--space-xs) var(--space-sm);
-    height: auto;
-    padding: var(--space-sm) var(--space-xs);
+      auto minmax(32px, 46px) auto minmax(34px, 1fr)
+      minmax(32px, 44px) minmax(11ch, max-content) 26px;
+    grid-template-areas: 'num qty mult price disc tot remove';
+    gap: 0 var(--space-xs);
+    height: 46px;
+    padding: 0 2px;
     align-items: center;
   }
 
   .app[data-discounts='off'] .item-row {
     grid-template-columns:
-      var(--col-num) minmax(48px, 62px) auto minmax(60px, 1fr) 32px;
-    grid-template-areas:
-      'num qty  mult price remove'
-      'num hint hint tot   tot';
+      auto minmax(32px, 46px) auto minmax(34px, 1fr) 0
+      minmax(11ch, max-content) 26px;
+  }
+
+  /* One line leaves no room for the x1000 hint, and the Line Total
+     column beside it already shows the resulting money. */
+  .item-row__hint {
+    display: none;
   }
 
   .item-row__num {
-    align-self: start;
-    padding-top: calc(10px * var(--scale));
+    font-size: 11px;
+  }
+
+  .item-row__mult {
+    font-size: 12px;
+  }
+
+  .item-row .input {
+    height: 34px;
+    /* Below iOS's 16px auto-zoom threshold, which is safe here only
+       because inputmode="none" means focusing one never opens the
+       system keyboard. */
+    font-size: 14px;
+    padding: 0 4px;
   }
 
   .item-row__total {
-    font-size: var(--font-body);
+    font-size: 13px;
     font-weight: 600;
+    white-space: nowrap;
   }
 
-  .item-row__hint {
-    font-size: calc(var(--font-sm) - 1px);
+  .item-row__remove {
+    width: 26px;
+    height: 26px;
+  }
+
+  .icon--cross {
+    font-size: 9px;
   }
 
   /* No hover on touch: the remove control is always reachable. */
@@ -1190,25 +1219,17 @@ dialog.centered {
     opacity: 1;
   }
 
-  /* Comfortable touch targets (Apple's 44px guidance). */
-  .item-row__remove {
-    width: 32px;
-    height: 32px;
-  }
-
+  /* Comfortable touch target for the ledger's row menu. (The line item's
+     remove control is sized with the one-line row rules below, where the
+     width budget is tight.) */
   .log-row__more {
     width: 32px;
     height: 32px;
   }
 
-  .item-row .input {
-    height: 40px;
-    /* iOS zooms the page when a focused input is under 16px. Keeping the
-       field at 16px is what prevents that, without disabling pinch-zoom
-       for everyone via the viewport meta. */
-    font-size: 16px;
-  }
-
+  /* The date and settings fields still use the system keyboard, so they
+     stay at 16px — below that iOS zooms the page on focus. (The line
+     items opt out via inputmode="none"; see the rule further down.) */
   .input {
     font-size: 16px;
     height: 40px;
@@ -1313,12 +1334,28 @@ dialog.centered {
   }
 }
 
-/* Very narrow phones (iPhone SE, 320px): give the price room by dropping
-   the per-line discount column's fixed width. */
+/* Very narrow phones (a 320px iPhone SE): tighten the fixed columns so
+   the flexible price column keeps a usable width. */
 @media (max-width: 360px) {
   .item-row {
     grid-template-columns:
-      var(--col-num) minmax(44px, 54px) auto minmax(52px, 1fr) 52px 30px;
+      auto minmax(28px, 38px) auto minmax(30px, 1fr)
+      minmax(28px, 38px) minmax(11ch, max-content) 24px;
+  }
+
+  .app[data-discounts='off'] .item-row {
+    grid-template-columns:
+      auto minmax(28px, 40px) auto minmax(32px, 1fr) 0
+      minmax(11ch, max-content) 24px;
+  }
+
+  .item-row .input {
+    font-size: 13px;
+    padding: 0 3px;
+  }
+
+  .item-row__total {
+    font-size: 12px;
   }
 
   .kpis {

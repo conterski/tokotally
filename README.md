@@ -37,8 +37,11 @@ is scaled off the window against a 1100x720 reference, the same
 proportional sizing `Theme.uiScale` does in the Qt app.
 
 **iPhone** — the panes stack into one column with a bottom tab bar. Each
-line item reflows onto two rows (`Qty × Price` above, line total below),
-so it fits a 320px screen with the discount column on. The bottom bar
+line item stays on a single line, scaled down to fit a 320px screen with
+the discount column on: the ×1000 hint is dropped (the Line Total beside
+it already shows the money), and the Line Total column has a `ch`-based
+floor so figures line up across rows without ever being truncated. The
+bottom bar
 stacks its total above two full-width buttons. Touch targets are at
 least 32–46px, inputs are 16px so iOS doesn't zoom on focus, and the
 layout tracks `visualViewport` so the Grand Total and Complete Sale
