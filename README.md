@@ -47,6 +47,32 @@ button stay above the soft keyboard.
 Safe-area insets are honoured, so the notch and home indicator don't
 overlap anything.
 
+## Number pad (touch only)
+
+On a touch device the line-item fields set `inputmode="none"`, so iOS
+never raises its own keyboard; a built-in pad takes its place, docked
+under the Grand Total so the running figure stays visible while typing.
+It replaces the tab bar while open, the way a system keyboard would.
+
+```
+7 8 9 ⌫
+4 5 6 ±
+1 2 3 ⏎
+. 0 0 ⏎
+```
+
+The fourth-column key adapts to the focused field, offering the one
+non-digit character that field accepts: `−` on Qty (so returns and
+refunds are still enterable), `+` on Discount (for chains like `10+5`),
+and disabled on Price, which takes digits only. Backspace is there
+because without it a mistyped figure could not be corrected.
+
+Keys write through the same path a keystroke takes — validate against
+the field's own pattern, set, dispatch `input` — and Enter dispatches a
+real Enter keydown, so the whole Enter flow is reused rather than
+reimplemented. A device with a physical keyboard never sees the pad and
+keeps `inputmode="decimal"`.
+
 ## Keyboard
 
 Unchanged from the desktop app. `Enter` walks Qty → Price → next line
@@ -77,6 +103,7 @@ js/store.js           view-models (port of backend/*_viewmodel.py, settings.py)
 js/ui/common.js       toast, popup menus, modal dialogs
 js/ui/salepane.js     sale entry     (port of SalePane.qml + LineItemRow.qml)
 js/ui/ledgerpane.js   ledger         (port of LedgerPane.qml)
+js/ui/numpad.js       in-app number pad for touch devices
 js/ui/settings.js     settings drawer (port of SettingsDrawer.qml) + backup
 js/ui/tween.js        number easing for the money readouts
 js/app.js             bootstrap, theme, scale, shortcuts (port of Main.qml)

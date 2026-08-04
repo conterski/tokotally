@@ -19,6 +19,7 @@ import {
   showToast,
 } from './ui/common.js';
 import { LedgerPane } from './ui/ledgerpane.js';
+import { Numpad } from './ui/numpad.js';
 import { SalePane } from './ui/salepane.js';
 import { SettingsDrawer } from './ui/settings.js';
 
@@ -50,6 +51,7 @@ const refs = {
   logRows: $('#logRows'),
   logEmpty: $('#logEmpty'),
   runningTotal: $('#runningTotal'),
+  numpad: $('#numpad'),
   // tabs
   tabSale: $('#tabSale'),
   tabLedger: $('#tabLedger'),
@@ -98,10 +100,14 @@ async function main() {
 
   const toast = (msg, undo) => showToast(msg, undo);
 
+  // Touch devices get the in-app number pad instead of the OS keyboard.
+  const touch = isTouch();
+
   const salePane = new SalePane({
     sale,
     settings,
     refs,
+    useNumpad: touch,
     onOpenSettings: () => drawer.open(),
     onToast: toast,
   });
@@ -139,9 +145,17 @@ async function main() {
     },
   });
 
+  const numpad = new Numpad({
+    container: refs.numpad,
+    app: refs.app,
+    enabled: touch,
+    onLayoutChange: () => salePane.scrollFocusedIntoView(),
+  });
+
   salePane.init();
   ledgerPane.init();
   drawer.init();
+  numpad.init();
 
   buildHelp();
   wireTabs();

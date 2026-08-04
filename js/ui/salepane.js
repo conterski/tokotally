@@ -35,12 +35,14 @@ const dateFmt = new Intl.DateTimeFormat('en-GB', {
 });
 
 export class SalePane {
-  constructor({ sale, settings, refs, onOpenSettings, onToast }) {
+  constructor({ sale, settings, refs, onOpenSettings, onToast, useNumpad }) {
     this.sale = sale;
     this.settings = settings;
     this.refs = refs;
     this.onOpenSettings = onOpenSettings;
     this.onToast = onToast;
+    // On touch the in-app number pad replaces the system keyboard.
+    this.useNumpad = Boolean(useNumpad);
 
     // Which rows have had their Qty committed. Keyed by the item object
     // itself, so the flag survives a re-render and disappears with the
@@ -271,9 +273,11 @@ export class SalePane {
     const input = el('input', {
       class: 'input',
       type: 'text',
-      // Brings up the numeric keypad on iOS without rejecting the
-      // separators and shorthand these fields accept.
-      inputmode: 'decimal',
+      // 'none' stops iOS raising its own keyboard so the in-app pad can
+      // take its place; the input still focuses and keeps a caret. With
+      // a physical keyboard, 'decimal' asks for the numeric layout
+      // without rejecting the separators and shorthand these accept.
+      inputmode: this.useNumpad ? 'none' : 'decimal',
       autocomplete: 'off',
       autocorrect: 'off',
       autocapitalize: 'off',
@@ -283,6 +287,9 @@ export class SalePane {
       'data-area': area,
     });
     setValue(input, value);
+    // Published so the number pad can reject a key with exactly the rule
+    // that governs typing, keeping one definition of what each field takes.
+    input._pattern = pattern;
     // QML's validator rejects the keystroke outright; the browser has no
     // equivalent, so an invalid edit is rolled back to the last good text.
     input.addEventListener('input', () => {
@@ -445,6 +452,16 @@ export class SalePane {
     field.focus({ preventScroll: true });
     field.select();
     this.scrollRowIntoView(row);
+  }
+
+  /**
+   * Re-reveal whatever row holds focus. Called when the number pad opens
+   * or closes, since that resizes the list under the focused field.
+   */
+  scrollFocusedIntoView() {
+    const row = document.activeElement?.closest?.('.item-row');
+    if (!row) return;
+    this.scrollRowIntoView([...this.refs.itemRows.children].indexOf(row));
   }
 
   /**

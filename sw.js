@@ -23,6 +23,7 @@ const ASSETS = [
   'js/store.js',
   'js/ui/common.js',
   'js/ui/ledgerpane.js',
+  'js/ui/numpad.js',
   'js/ui/salepane.js',
   'js/ui/settings.js',
   'js/ui/tween.js',

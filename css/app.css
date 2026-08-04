@@ -104,12 +104,122 @@ button {
   min-width: 0;
 }
 
+/* Place every pane child on its row explicitly. A display:none grid item
+   is not placed at all, so relying on source order means hiding the
+   column header on phones shifts everything up one row — handing the
+   flexible 1fr row to the bottom bar and pinning the item list to its
+   content height. */
+.topstrip,
+.ledger-head {
+  grid-row: 1;
+}
+
+.colhead,
+.kpis {
+  grid-row: 2;
+}
+
+.items,
+.log-list {
+  grid-row: 3;
+}
+
+.bottombar,
+.ledger-foot {
+  grid-row: 4;
+}
+
 .pane-divider {
   background: var(--divider);
 }
 
 .tabbar {
   display: none;
+}
+
+/* ==================================================================== */
+/* number pad (touch only)                                              */
+/* ==================================================================== */
+/* Hidden by default and on any device with a fine pointer; app.js sets
+   data-numpad on the shell when a line-item field takes focus. */
+.numpad {
+  display: none;
+}
+
+.app[data-numpad='open'] .numpad {
+  display: block;
+  /* Spans every column so it also sits correctly under the wide
+     two-pane grid, not just the phone's single column. */
+  grid-column: 1 / -1;
+  grid-row: 2;
+  border-top: 1px solid var(--divider);
+  background: var(--surface);
+  padding: var(--space-sm);
+  padding-bottom: max(var(--space-sm), env(safe-area-inset-bottom));
+}
+
+/* While the pad is up it stands in for the tab bar, exactly as the
+   system keyboard would cover it. */
+.app[data-numpad='open'] .tabbar {
+  display: none;
+}
+
+.numpad__keys {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-areas:
+    'k7  k8 k9 bs'
+    'k4  k5 k6 ctx'
+    'k1  k2 k3 ent'
+    'dot k0 k0 ent';
+  gap: var(--space-xs);
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.np-key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Comfortably above the 44px touch minimum, and short enough that four
+     rows still leave the item list usable on a 568px-tall phone. */
+  min-height: 46px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 500;
+  /* Stops a long press selecting the glyph or opening the callout menu. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: background-color 80ms;
+}
+
+.np-key:active {
+  background: var(--hover);
+}
+
+.np-key--util {
+  background: transparent;
+  border: 1px solid var(--divider);
+  color: var(--text-secondary);
+}
+
+.np-key--util:disabled {
+  opacity: 0.3;
+}
+
+.np-key--enter {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.np-key--enter:active {
+  background: var(--accent);
+  filter: brightness(1.08);
 }
 
 /* ==================================================================== */
@@ -956,9 +1066,10 @@ dialog.centered {
 /* ==================================================================== */
 @media (max-width: 899px) {
   .app {
-    /* One column; the tab bar owns the last row. */
+    /* One column: panes, then the number pad, then the tab bar. Both
+       trailing rows collapse to nothing while they are display:none. */
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: 1fr auto auto;
   }
 
   .pane {
@@ -1004,6 +1115,13 @@ dialog.centered {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-sm);
+  }
+
+  /* flex: 1 is for the desktop row, where the total takes the leftover
+     width. Once this is a column that same rule stretches it down the
+     screen and starves the item list, so pin it to its content height. */
+  .grand {
+    flex: 0 0 auto;
   }
 
   .bottombar__actions {
@@ -1126,7 +1244,7 @@ dialog.centered {
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 3;
     border-top: 1px solid var(--divider);
     background: var(--surface);
     padding-bottom: env(safe-area-inset-bottom);
@@ -1205,6 +1323,19 @@ dialog.centered {
 
   .kpis {
     gap: var(--space-md);
+  }
+}
+
+/* Short screens (an iPhone SE, or any phone in landscape) have to fit the
+   pad and still show line items, so tighten the keys. */
+@media (max-height: 700px) {
+  .np-key {
+    min-height: 38px;
+    font-size: 19px;
+  }
+
+  .np-key--enter {
+    font-size: 22px;
   }
 }
 
