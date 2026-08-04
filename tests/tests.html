@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>TokoTally — tests</title>
+    <style>
+      body { font: 14px ui-monospace, Menlo, Consolas, monospace; margin: 24px; background:#0e1116; color:#f2f5f8; }
+      h1 { font-size: 18px; }
+      .pass { color: #2dd4bf; }
+      .fail { color: #f87171; }
+      .group { margin: 14px 0 6px; color: #9aa6b2; font-weight: bold; }
+      li { margin: 2px 0; }
+      #summary { margin-top: 20px; padding: 10px; border: 1px solid #333; }
+    </style>
+  </head>
+  <body>
+    <h1>TokoTally — core parity tests</h1>
+    <p style="color:#9aa6b2">
+      Cases in <code>fixture.json</code> are produced by the real Python
+      backend (<code>tools/gen_fixture.py</code>); these assert the
+      JavaScript port agrees with it.
+    </p>
+    <div id="out"></div>
+    <div id="summary"></div>
+
+    <script type="module">
+      import {
+        PRICE_MULTIPLIER,
+        discountFactor,
+        formatDateDisplay,
+        formatMoney,
+        formatNumber,
+        lineTotal,
+        parseField,
+        parseUserDate,
+        effectiveDate,
+        formatTime,
+        nowStamp,
+        todayIso,
+      } from '../js/core.js';
+
+      const out = document.getElementById('out');
+      let pass = 0;
+      let fail = 0;
+
+      function group(name) {
+        out.insertAdjacentHTML('beforeend', `<div class="group">${name}</div><ul id="g${++group.n}"></ul>`);
+        return document.getElementById(`g${group.n}`);
+      }
+      group.n = 0;
+
+      function check(list, label, actual, expected) {
+        // Floats: compare within a tolerance rather than bit-for-bit.
+        const ok =
+          typeof expected === 'number' && typeof actual === 'number'
+            ? Math.abs(actual - expected) < 1e-9
+            : actual === expected;
+        ok ? pass++ : fail++;
+        list.insertAdjacentHTML(
+          'beforeend',
+          `<li class="${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'} ${label}` +
+            (ok ? '' : ` — got <b>${JSON.stringify(actual)}</b>, expected <b>${JSON.stringify(expected)}</b>`) +
+            '</li>'
+        );
+      }
+
+      const fixture = await (await fetch('fixture.json', { cache: 'no-store' })).json();
+
+      // --- constants ---------------------------------------------------
+      let g = group('constants');
+      check(g, 'PRICE_MULTIPLIER', PRICE_MULTIPLIER, fixture.priceMultiplier);
+
+      // --- discount chains ---------------------------------------------
+      g = group(`discountFactor (${fixture.discountFactor.length} cases from Python)`);
+      for (const c of fixture.discountFactor) {
+        check(g, `discountFactor(${JSON.stringify(c.input)})`, discountFactor(c.input), c.expected);
+      }
+
+      // --- date parsing -------------------------------------------------
+      g = group(`parseUserDate (${fixture.parseUserDate.length} cases from Python)`);
+      for (const c of fixture.parseUserDate) {
+        check(g, `parseUserDate(${JSON.stringify(c.input)})`, parseUserDate(c.input), c.expected);
+      }
+
+      g = group(`formatDateDisplay (${fixture.formatDateDisplay.length} cases from Python)`);
+      for (const c of fixture.formatDateDisplay) {
+        check(g, `formatDateDisplay(${JSON.stringify(c.input)})`, formatDateDisplay(c.input), c.expected);
+      }
+
+      // --- the money rule ------------------------------------------------
+      g = group(`lineTotal (${fixture.lineTotal.length} cases from Python)`);
+      for (const c of fixture.lineTotal) {
+        check(
+          g,
+          `${c.qty} x ${c.price} disc ${JSON.stringify(c.discount)}`,
+          lineTotal({ qty: c.qty, price: c.price, discount: c.discount }),
+          c.expected
+        );
+      }
+
+      // --- formatting (id-ID convention, asserted directly) --------------
+      g = group('formatting');
+      check(g, 'formatNumber(1600000, 3)', formatNumber(1600000, 3), '1.600.000,000');
+      check(g, 'formatNumber(1250000, 0)', formatNumber(1250000, 0), '1.250.000');
+      check(g, 'formatNumber(0, 3)', formatNumber(0, 3), '0,000');
+      check(g, 'formatNumber(-2000, 2)', formatNumber(-2000, 2), '-2.000,00');
+      check(g, 'formatMoney with symbol', formatMoney(1250000, 3, 'Rp'), 'Rp 1.250.000,000');
+      check(g, 'formatMoney with no symbol', formatMoney(1250000, 3, ''), '1.250.000,000');
+
+      // --- field parsing (comma as decimal separator) --------------------
+      g = group('parseField');
+      check(g, "parseField('12,5')", parseField('12,5'), 12.5);
+      check(g, "parseField('12.5')", parseField('12.5'), 12.5);
+      check(g, "parseField('')", parseField(''), 0);
+      check(g, "parseField('abc')", parseField('abc'), 0);
+      check(g, "parseField('-3')", parseField('-3'), -3);
+
+      // --- timestamps ----------------------------------------------------
+      g = group('timestamps');
+      check(g, "formatTime('2026-08-04 14:32:09')", formatTime('2026-08-04 14:32:09'), '14:32');
+      check(g, 'formatTime(garbage) passes through', formatTime('nope'), 'nope');
+      check(g, 'nowStamp shape', /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(nowStamp()), true);
+      check(g, 'todayIso shape', /^\d{4}-\d{2}-\d{2}$/.test(todayIso()), true);
+      check(g, 'nowStamp starts with todayIso', nowStamp().startsWith(todayIso()), true);
+      // A sale date, when set, overrides the logged-at day for the Today KPI.
+      check(g, 'effectiveDate prefers saleDate',
+        effectiveDate({ saleDate: '2026-01-02', createdAt: '2026-08-04 10:00:00' }), '2026-01-02');
+      check(g, 'effectiveDate falls back to createdAt',
+        effectiveDate({ saleDate: '', createdAt: '2026-08-04 10:00:00' }), '2026-08-04');
+
+      document.getElementById('summary').innerHTML =
+        `<b class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</b>`;
+      window.__results = { pass, fail };
+    </script>
+  </body>
+</html>

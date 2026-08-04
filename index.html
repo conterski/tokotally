@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <!-- viewport-fit=cover lets the layout reach under the notch/home bar;
+         the CSS pays it back with env(safe-area-inset-*) padding. Pinch
+         zoom is deliberately left enabled — iOS auto-zoom on focus is
+         prevented with 16px inputs instead. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0e1116" id="themeColor" />
+    <meta name="description" content="TokoTally — offline sales calculator and logger." />
+    <title>TokoTally</title>
+
+    <!-- Standalone (home-screen) launch on iOS. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TokoTally" />
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <link rel="icon" href="icons/icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <!-- Reusable icon defs; each <use> below picks one up. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <!-- Gear: eight teeth around a ring. The ring is one evenodd path so
+           its centre stays transparent whatever it sits on — the same
+           reason IconGear.qml punches the hole with destination-out. -->
+      <symbol id="i-gear" viewBox="0 0 24 24">
+        <g>
+          <rect x="10.8" y="1.2" width="2.4" height="5" rx="0.6" />
+          <rect x="10.8" y="17.8" width="2.4" height="5" rx="0.6" />
+          <rect x="1.2" y="10.8" width="5" height="2.4" rx="0.6" />
+          <rect x="17.8" y="10.8" width="5" height="2.4" rx="0.6" />
+          <g transform="rotate(45 12 12)">
+            <rect x="10.8" y="1.2" width="2.4" height="5" rx="0.6" />
+            <rect x="10.8" y="17.8" width="2.4" height="5" rx="0.6" />
+            <rect x="1.2" y="10.8" width="5" height="2.4" rx="0.6" />
+            <rect x="17.8" y="10.8" width="5" height="2.4" rx="0.6" />
+          </g>
+        </g>
+        <path
+          fill-rule="evenodd"
+          d="M12 5.6a6.4 6.4 0 1 0 0 12.8 6.4 6.4 0 0 0 0-12.8Zm0 3.9a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"
+        />
+      </symbol>
+      <symbol id="i-dots" viewBox="0 0 24 24">
+        <circle cx="5" cy="12" r="2" />
+        <circle cx="12" cy="12" r="2" />
+        <circle cx="19" cy="12" r="2" />
+      </symbol>
+      <symbol id="i-cross" viewBox="0 0 24 24">
+        <path
+          d="M18.3 5.7a1 1 0 0 0-1.4 0L12 10.6 7.1 5.7a1 1 0 1 0-1.4 1.4l4.9 4.9-4.9 4.9a1 1 0 1 0 1.4 1.4l4.9-4.9 4.9 4.9a1 1 0 0 0 1.4-1.4L13.4 12l4.9-4.9a1 1 0 0 0 0-1.4Z"
+        />
+      </symbol>
+    </svg>
+
+    <div class="app" id="app" data-view="sale" data-discounts="off">
+      <!-- ============================================================ -->
+      <!-- sale pane                                                     -->
+      <!-- ============================================================ -->
+      <section class="pane pane--sale" id="salePane" aria-label="Current sale">
+        <div class="topstrip">
+          <div class="topstrip__titles">
+            <div class="topstrip__title" id="saleTitle">TokoTally</div>
+            <div class="topstrip__sub" id="saleSubtitle"></div>
+          </div>
+          <div class="topstrip__actions">
+            <div>
+              <label class="field-label" for="dateField">Sale date (optional)</label>
+              <input
+                class="input input--date"
+                id="dateField"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="dd/mm/yyyy"
+                aria-label="Sale date, optional"
+              />
+            </div>
+            <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+              <svg class="icon icon--gear" aria-hidden="true"><use href="#i-gear" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Column titles; hidden on phones, where rows are two-line. -->
+        <div class="colhead" aria-hidden="true">
+          <span style="grid-area: num">#</span>
+          <span style="grid-area: qty">Qty</span>
+          <span style="grid-area: mult"></span>
+          <span style="grid-area: price">Price / Unit</span>
+          <span style="grid-area: hint"></span>
+          <span data-area="disc">Disc %</span>
+          <span style="grid-area: tot; text-align: right">Line Total</span>
+          <span style="grid-area: remove"></span>
+        </div>
+
+        <div class="scroll items" id="itemsScroll">
+          <div id="itemRows"></div>
+        </div>
+
+        <div class="bottombar">
+          <div class="grand">
+            <div class="grand__label">Grand Total</div>
+            <div class="grand__value" id="grandTotal">0</div>
+          </div>
+          <div class="bottombar__actions">
+            <button class="btn" id="clearBtn">
+              <span id="clearBtnLabel">Clear Entry</span>
+              <span class="btn__hint">Esc</span>
+            </button>
+            <button class="btn btn--accent" id="completeBtn">
+              <span id="completeBtnLabel">Complete Sale</span>
+              <span class="btn__hint">Ctrl+↵</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div class="pane-divider"></div>
+
+      <!-- ============================================================ -->
+      <!-- ledger pane                                                   -->
+      <!-- ============================================================ -->
+      <section class="pane pane--ledger" id="ledgerPane" aria-label="Ledger">
+        <div class="ledger-head">
+          <button class="log-picker" id="logPicker" aria-haspopup="menu">
+            <span class="log-picker__name" id="logName">Log 1</span>
+            <span class="log-picker__chev" aria-hidden="true">▾</span>
+          </button>
+          <div class="ledger-head__actions">
+            <button class="btn btn--sm" id="copyBtn">Copy</button>
+            <button class="btn btn--sm" id="clearLogBtn">Clear Log</button>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="kpi__value" id="kpiCount">0</div>
+            <div class="kpi__label">Sales logged</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi__value kpi__value--accent" id="kpiToday">0</div>
+            <div class="kpi__label">Today</div>
+          </div>
+        </div>
+
+        <div class="scroll log-list" id="logScroll">
+          <div id="logRows"></div>
+          <div class="empty-state hidden" id="logEmpty">No sales logged yet</div>
+        </div>
+
+        <div class="ledger-foot">
+          <span class="ledger-foot__label">Total</span>
+          <span class="ledger-foot__value" id="runningTotal">0</span>
+        </div>
+      </section>
+
+      <!-- Phone-only pane switcher. -->
+      <nav class="tabbar" aria-label="Sections">
+        <button class="tab tab--on" id="tabSale" data-view="sale">
+          <span>Sale</span>
+          <span class="tab__count" id="tabSaleTotal"></span>
+        </button>
+        <button class="tab" id="tabLedger" data-view="ledger">
+          <span>Ledger</span>
+          <span class="tab__count" id="tabLedgerCount"></span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- transient undo notice -->
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span class="toast__msg" id="toastMsg"></span>
+      <button class="toast__undo hidden" id="toastUndo">Undo</button>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- dialogs                                                         -->
+    <!-- ============================================================== -->
+    <dialog id="settingsDialog" aria-label="Settings">
+      <div class="drawer">
+        <h2 class="drawer__title">Settings</h2>
+
+        <div class="setting">
+          <span class="setting__label">Appearance</span>
+          <div class="setting__row">
+            <button class="btn" id="themeDark">Dark</button>
+            <button class="btn" id="themeLight">Light</button>
+          </div>
+        </div>
+
+        <div class="setting">
+          <span class="setting__label">Line discounts</span>
+          <div class="setting__row">
+            <button class="btn" id="discOn">On</button>
+            <button class="btn" id="discOff">Off</button>
+          </div>
+          <span class="setting__note">
+            Adds a per-line discount field. Type chained percents like 10+5+3.
+          </span>
+        </div>
+
+        <div class="setting">
+          <span class="setting__label">Accent</span>
+          <div class="swatches" id="swatches"></div>
+        </div>
+
+        <div class="setting">
+          <span class="setting__label">Decimals</span>
+          <div class="setting__row setting__row--tight">
+            <button class="btn" id="decMinus" aria-label="Fewer decimals">−</button>
+            <span class="setting__stepval" id="decValue">3</span>
+            <button class="btn" id="decPlus" aria-label="More decimals">+</button>
+          </div>
+        </div>
+
+        <div class="setting">
+          <label class="setting__label" for="currencyField">Currency symbol</label>
+          <input class="input" id="currencyField" type="text" style="max-width: 140px" />
+        </div>
+
+        <div class="setting">
+          <span class="setting__label muted" id="moneyPreview"></span>
+        </div>
+
+        <div class="setting">
+          <span class="setting__label">Backup</span>
+          <div class="setting__row">
+            <button class="btn" id="exportBtn">Export</button>
+            <button class="btn" id="importBtn">Import</button>
+          </div>
+          <span class="setting__note">
+            Data lives in this browser only. Export moves a ledger between
+            your phone and PC; importing replaces everything here.
+          </span>
+          <input type="file" id="importFile" accept="application/json,.json" class="hidden" />
+        </div>
+
+        <div class="spacer"></div>
+        <button class="btn" id="settingsClose">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="confirmDialog" class="centered" aria-label="Confirm">
+      <div class="sheet sheet--narrow">
+        <h2 class="sheet__title" id="confirmTitle"></h2>
+        <p class="sheet__body" id="confirmBody"></p>
+        <div class="sheet__actions">
+          <button class="btn" id="confirmCancel">Cancel</button>
+          <button class="btn btn--danger" id="confirmOk"></button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="nameDialog" class="centered" aria-label="Name a log">
+      <form method="dialog" class="sheet sheet--narrow">
+        <h2 class="sheet__title" id="nameTitle">New log</h2>
+        <input
+          class="input"
+          id="nameField"
+          type="text"
+          placeholder="Log name"
+          autocomplete="off"
+        />
+        <div class="sheet__actions">
+          <button class="btn" type="button" id="nameCancel">Cancel</button>
+          <button class="btn btn--accent" type="submit" id="nameSave">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="helpDialog" class="centered" aria-label="Keyboard shortcuts">
+      <div class="sheet">
+        <h2 class="sheet__title">Keyboard shortcuts</h2>
+        <div class="keys" id="keysList"></div>
+        <div class="sheet__actions">
+          <button class="btn" id="helpClose">Close</button>
+        </div>
+      </div>
+    </dialog>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

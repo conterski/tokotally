@@ -1,0 +1,1225 @@
+/*
+ * Layout and components.
+ *
+ * Two layouts share one DOM. Wide screens get the desktop app's calm
+ * two-pane split (sale | ledger) with the line items as a real table.
+ * Below 900px the panes stack into a single column with a bottom tab bar,
+ * and each line item reflows onto two rows so Qty x Price still fits a
+ * 375px iPhone. The switch is done with grid templates, not with separate
+ * markup, so there is one set of behaviour to reason about.
+ */
+
+/* ==================================================================== */
+/* base                                                                 */
+/* ==================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-body);
+  /* Tabular figures everywhere: money columns must not shimmy as digits
+     change. The desktop app sets this per-Text with font.features. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--anim-med);
+}
+
+button,
+input {
+  font: inherit;
+  font-variant-numeric: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  /* Kill the double-tap-to-zoom delay on iOS. */
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* Don't let a flick at the end of the list rubber-band the whole page. */
+  overscroll-behavior: contain;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ==================================================================== */
+/* app shell                                                            */
+/* ==================================================================== */
+.app {
+  display: grid;
+  /* 60/40, matching the desktop split. */
+  grid-template-columns: 60fr 1px 40fr;
+  grid-template-rows: 1fr;
+  /* --app-h is the visual viewport height, kept current by app.js so the
+     bottom bar stays above the iOS soft keyboard. dvh is the fallback
+     before the first measurement (and it already tracks Safari's
+     collapsing toolbars, which vh does not). */
+  height: var(--app-h, 100dvh);
+  width: 100%;
+}
+
+.pane {
+  display: grid;
+  /* minmax(0, 1fr), not the implicit `auto`: grid items default to
+     min-width auto, so a single wide child (the bottom bar's buttons)
+     would size this column to its min-content and push every row past
+     the edge of a narrow phone. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr auto;
+  /* Without this a grid row refuses to shrink and the list never scrolls. */
+  min-height: 0;
+  min-width: 0;
+}
+
+.pane-divider {
+  background: var(--divider);
+}
+
+.tabbar {
+  display: none;
+}
+
+/* ==================================================================== */
+/* buttons                                                              */
+/* ==================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: calc(42px * var(--scale));
+  padding: 0 var(--space-md);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color var(--anim-fast);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn--accent {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.btn--accent:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+.btn--danger {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.btn--sm {
+  min-height: calc(34px * var(--scale));
+  padding: 0 var(--space-sm);
+}
+
+.btn--ghost {
+  border-color: transparent;
+}
+
+.btn__hint {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-weight: 400;
+}
+
+.btn--accent .btn__hint {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+/* Round icon button (the settings gear). */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(40px * var(--scale));
+  height: calc(40px * var(--scale));
+  border-radius: 50%;
+  color: var(--text-secondary);
+  transition: background-color var(--anim-fast);
+}
+
+.icon-btn:hover {
+  background: var(--hover);
+}
+
+/* ==================================================================== */
+/* sale pane — top strip                                                */
+/* ==================================================================== */
+.topstrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  padding-bottom: 0;
+}
+
+.topstrip__titles {
+  min-width: 0;
+  flex: 1;
+}
+
+.topstrip__title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.topstrip__sub {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  line-height: 1.35;
+}
+
+.topstrip__sub--editing {
+  color: var(--accent);
+}
+
+.topstrip__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.field-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: calc(var(--font-sm) - 1px);
+  line-height: 1.4;
+}
+
+/* Flat text input with a soft focus ring — the EditField look. */
+.input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 var(--space-sm);
+  height: calc(30px * var(--scale));
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  transition: background-color var(--anim-fast), border-color var(--anim-fast);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:focus {
+  outline: none;
+  background: var(--surface-alt);
+  border-color: var(--accent);
+}
+
+.input--date {
+  width: calc(130px * var(--scale));
+}
+
+/* Red ring while the typed date can't be parsed. */
+.input--invalid,
+.input--invalid:focus {
+  border-color: var(--danger);
+}
+
+/* ==================================================================== */
+/* sale pane — line items                                               */
+/* ==================================================================== */
+.colhead,
+.item-row {
+  display: grid;
+  gap: var(--space-md);
+  align-items: center;
+  grid-template-columns:
+    var(--col-num) var(--col-qty) var(--col-mult) var(--col-price)
+    1fr var(--col-disc) var(--col-total) var(--col-remove);
+  grid-template-areas: 'num qty mult price hint disc tot remove';
+}
+
+/* Discounts off: collapse the column rather than restructure the grid. */
+.app[data-discounts='off'] .colhead,
+.app[data-discounts='off'] .item-row {
+  grid-template-columns:
+    var(--col-num) var(--col-qty) var(--col-mult) var(--col-price)
+    1fr 0 var(--col-total) var(--col-remove);
+}
+
+.app[data-discounts='off'] [data-area='disc'] {
+  display: none;
+}
+
+.colhead {
+  padding: 0 calc(var(--space-lg) + var(--space-sm));
+  margin-top: var(--space-md);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+.items {
+  padding: var(--space-md) var(--space-lg);
+  min-height: 0;
+}
+
+.item-row {
+  position: relative;
+  padding: 0 var(--space-sm);
+  height: calc(52px * var(--scale));
+  border-radius: var(--radius-sm);
+  /* Leaves the focused row off the hard edge when it is scrolled into
+     view, so the neighbouring row stays half visible (the desktop app's
+     scrollMargin, expressed where the browser can honour it natively). */
+  scroll-margin-block: var(--space-md);
+  transition: background-color var(--anim-fast);
+}
+
+.item-row::after {
+  /* Hairline separator under each row. */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--divider);
+}
+
+.item-row:hover {
+  background: var(--hover);
+}
+
+.item-row--enter {
+  animation: fade-in var(--anim-fast) ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.item-row__num {
+  grid-area: num;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+.item-row__mult {
+  grid-area: mult;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+[data-area='qty'] {
+  grid-area: qty;
+}
+[data-area='price'] {
+  grid-area: price;
+}
+[data-area='disc'] {
+  grid-area: disc;
+}
+
+.item-row .input {
+  height: calc(38px * var(--scale));
+  font-size: var(--font-md);
+}
+
+.item-row__hint {
+  grid-area: hint;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-row__total {
+  grid-area: tot;
+  text-align: right;
+  font-size: var(--font-md);
+  color: var(--text-primary);
+}
+
+.item-row__total--zero {
+  color: var(--text-muted);
+}
+
+.item-row__remove {
+  grid-area: remove;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--col-remove);
+  height: var(--col-remove);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity var(--anim-fast), background-color var(--anim-fast);
+}
+
+.item-row:hover .item-row__remove,
+.item-row:focus-within .item-row__remove,
+.item-row__remove:focus-visible {
+  opacity: 1;
+}
+
+.item-row__remove:hover {
+  background: var(--hover);
+}
+
+/* A muted qty reads as the unconfirmed default 1; solid once committed. */
+.input--tentative {
+  color: var(--text-muted);
+}
+
+/* ==================================================================== */
+/* sale pane — bottom bar                                               */
+/* ==================================================================== */
+.bottombar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--divider);
+}
+
+.grand {
+  flex: 1;
+  min-width: 0;
+}
+
+.grand__label {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.grand__value {
+  color: var(--accent);
+  font-size: var(--font-total);
+  font-weight: 600;
+  line-height: 1.1;
+  /* The number shrinks to fit rather than running under the buttons. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bottombar__actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+/* ==================================================================== */
+/* ledger pane                                                          */
+/* ==================================================================== */
+.pane--ledger {
+  border-left: 0;
+}
+
+.ledger-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  padding-bottom: 0;
+}
+
+.log-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-md);
+  font-weight: 600;
+  transition: background-color var(--anim-fast);
+}
+
+.log-picker:hover {
+  background: var(--hover);
+}
+
+.log-picker__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-picker__chev {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.ledger-head__actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.kpis {
+  display: flex;
+  gap: var(--space-xl);
+  padding: var(--space-sm) var(--space-lg) 0;
+}
+
+.kpi__value {
+  font-size: var(--font-kpi);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.kpi__value--accent {
+  color: var(--accent);
+}
+
+.kpi__label {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.log-list {
+  padding: var(--space-md) var(--space-lg);
+  min-height: 0;
+}
+
+.log-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: calc(84px * var(--scale)) 1fr calc(80px * var(--scale)) calc(24px * var(--scale));
+  gap: var(--space-md);
+  align-items: center;
+  padding: 0 var(--space-sm);
+  height: calc(48px * var(--scale));
+  border-radius: var(--radius-sm);
+  scroll-margin-block: var(--space-md);
+  transition: background-color var(--anim-fast);
+}
+
+.log-row::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--divider);
+}
+
+.log-row:hover {
+  background: var(--hover);
+}
+
+/* The sale currently open in the left panel gets an accent tint. */
+.log-row--editing {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.log-row--enter {
+  animation: fade-in var(--anim-med) ease-out;
+}
+
+.log-row__meta,
+.log-row__when {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.log-row__seq {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+.log-row__items {
+  color: var(--text-muted);
+  font-size: calc(var(--font-sm) - 1px);
+}
+
+.log-row__total {
+  text-align: right;
+  font-size: var(--font-body);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-row__when {
+  text-align: right;
+}
+
+.log-row__date {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.log-row__time {
+  color: var(--text-muted);
+  font-size: calc(var(--font-sm) - 1px);
+}
+
+.log-row__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(24px * var(--scale));
+  height: calc(24px * var(--scale));
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity var(--anim-fast), background-color var(--anim-fast);
+}
+
+.log-row:hover .log-row__more,
+.log-row__more:focus-visible,
+.log-row--menu-open .log-row__more {
+  opacity: 1;
+}
+
+.log-row__more:hover {
+  background: var(--surface-alt);
+}
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--text-muted);
+}
+
+.ledger-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--divider);
+}
+
+.ledger-foot__label {
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.ledger-foot__value {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==================================================================== */
+/* menus (log picker, per-row actions)                                  */
+/* ==================================================================== */
+.menu {
+  position: fixed;
+  z-index: 900;
+  min-width: calc(180px * var(--scale));
+  max-width: min(80vw, 280px);
+  padding: var(--space-xs);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+.menu__item {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: var(--font-body);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu__item:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.menu__item:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.menu__item--current {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.menu__item--danger {
+  color: var(--danger);
+}
+
+.menu__sep {
+  height: 1px;
+  margin: var(--space-xs) 0;
+  background: var(--divider);
+}
+
+/* ==================================================================== */
+/* toast                                                                */
+/* ==================================================================== */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--space-lg) + env(safe-area-inset-bottom));
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  max-width: calc(100vw - 2 * var(--space-lg));
+  padding: 0 var(--space-md);
+  min-height: calc(44px * var(--scale));
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 8px);
+  transition: opacity var(--anim-med), transform var(--anim-med),
+    visibility var(--anim-med);
+}
+
+.toast--shown {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+.toast__msg {
+  font-size: var(--font-body);
+}
+
+.toast__undo {
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ==================================================================== */
+/* dialogs                                                              */
+/* ==================================================================== */
+dialog {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  max-width: none;
+  max-height: none;
+}
+
+dialog::backdrop {
+  background: var(--scrim);
+}
+
+.sheet {
+  width: min(calc(420px * var(--scale)), calc(100vw - 2 * var(--space-lg)));
+  max-height: calc(100dvh - 2 * var(--space-lg));
+  overflow-y: auto;
+  padding: var(--space-lg);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.sheet--narrow {
+  width: min(calc(340px * var(--scale)), calc(100vw - 2 * var(--space-lg)));
+}
+
+/* Centre the modal dialogs in the viewport. */
+dialog.centered {
+  margin: auto;
+}
+
+.sheet__title {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.sheet__body {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+}
+
+.sheet__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.sheet .input {
+  height: calc(40px * var(--scale));
+  background: var(--surface-alt);
+  font-size: var(--font-md);
+}
+
+/* --- settings: a right-edge slide-over on desktop ------------------- */
+#settingsDialog {
+  margin: 0 0 0 auto;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  width: min(calc(360px * var(--scale)), 100vw);
+  height: 100dvh;
+  padding: var(--space-lg);
+  padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border-left: 1px solid var(--divider);
+  background: var(--surface);
+}
+
+.drawer__title {
+  margin: 0;
+  font-size: var(--font-lg);
+  font-weight: 600;
+}
+
+.setting {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.setting__label {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.setting__note {
+  color: var(--text-muted);
+  font-size: calc(var(--font-sm) - 1px);
+  line-height: 1.45;
+}
+
+.setting__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.setting__row .btn {
+  flex: 1;
+}
+
+.setting__row--tight .btn {
+  flex: 0 0 auto;
+  min-width: calc(44px * var(--scale));
+}
+
+.setting__stepval {
+  width: calc(40px * var(--scale));
+  text-align: center;
+  font-size: var(--font-md);
+}
+
+.swatches {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.swatch {
+  width: calc(32px * var(--scale));
+  height: calc(32px * var(--scale));
+  border-radius: 50%;
+  border: 0 solid var(--text-primary);
+  transition: border-width var(--anim-fast);
+}
+
+.swatch--on {
+  border-width: 3px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* --- shortcut sheet ------------------------------------------------- */
+.keys {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.keys__row {
+  display: grid;
+  grid-template-columns: calc(120px * var(--scale)) 1fr;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.keys__key {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  text-align: center;
+  font-size: var(--font-sm);
+  font-weight: 500;
+}
+
+.keys__desc {
+  color: var(--text-secondary);
+  font-size: var(--font-body);
+  line-height: 1.45;
+}
+
+/* ==================================================================== */
+/* icons                                                                */
+/* ==================================================================== */
+.icon {
+  display: block;
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+}
+
+.icon--gear {
+  font-size: calc(20px * var(--scale));
+}
+
+.icon--dots {
+  font-size: calc(16px * var(--scale));
+}
+
+.icon--cross {
+  font-size: calc(10px * var(--scale));
+}
+
+/* ==================================================================== */
+/* phone layout                                                         */
+/* ==================================================================== */
+@media (max-width: 899px) {
+  .app {
+    /* One column; the tab bar owns the last row. */
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+
+  .pane {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .pane-divider {
+    display: none;
+  }
+
+  /* Only the selected pane is mounted in the viewport. */
+  .app[data-view='sale'] .pane--ledger,
+  .app[data-view='ledger'] .pane--sale {
+    display: none;
+  }
+
+  .topstrip,
+  .ledger-head {
+    padding: var(--space-md) var(--space-md) 0;
+  }
+
+  .kpis {
+    padding: var(--space-sm) var(--space-md) 0;
+    gap: var(--space-lg);
+  }
+
+  .items,
+  .log-list {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .bottombar,
+  .ledger-foot {
+    padding: var(--space-sm) var(--space-md);
+    /* The tab bar below carries the safe-area padding instead. */
+    padding-bottom: var(--space-sm);
+  }
+
+  /* The total and two buttons cannot share a line on a phone, so stack
+     them and let the buttons split the width as proper touch targets. */
+  .bottombar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+  }
+
+  .bottombar__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
+  }
+
+  .bottombar__actions .btn {
+    min-height: 46px;
+  }
+
+  /* There is no physical keyboard to hint at. */
+  .btn__hint {
+    display: none;
+  }
+
+  .ledger-head {
+    flex-wrap: wrap;
+  }
+
+  /* The desktop column header has no meaning once rows are two-line. */
+  .colhead {
+    display: none;
+  }
+
+  /* --- line items reflow onto two rows --------------------------- */
+  .item-row {
+    grid-template-columns:
+      var(--col-num) minmax(48px, 62px) auto minmax(60px, 1fr)
+      var(--col-disc) 32px;
+    grid-template-areas:
+      'num qty  mult price disc remove'
+      'num hint hint hint  tot  tot';
+    gap: var(--space-xs) var(--space-sm);
+    height: auto;
+    padding: var(--space-sm) var(--space-xs);
+    align-items: center;
+  }
+
+  .app[data-discounts='off'] .item-row {
+    grid-template-columns:
+      var(--col-num) minmax(48px, 62px) auto minmax(60px, 1fr) 32px;
+    grid-template-areas:
+      'num qty  mult price remove'
+      'num hint hint tot   tot';
+  }
+
+  .item-row__num {
+    align-self: start;
+    padding-top: calc(10px * var(--scale));
+  }
+
+  .item-row__total {
+    font-size: var(--font-body);
+    font-weight: 600;
+  }
+
+  .item-row__hint {
+    font-size: calc(var(--font-sm) - 1px);
+  }
+
+  /* No hover on touch: the remove control is always reachable. */
+  .item-row__remove,
+  .log-row__more {
+    opacity: 1;
+  }
+
+  /* Comfortable touch targets (Apple's 44px guidance). */
+  .item-row__remove {
+    width: 32px;
+    height: 32px;
+  }
+
+  .log-row__more {
+    width: 32px;
+    height: 32px;
+  }
+
+  .item-row .input {
+    height: 40px;
+    /* iOS zooms the page when a focused input is under 16px. Keeping the
+       field at 16px is what prevents that, without disabling pinch-zoom
+       for everyone via the viewport meta. */
+    font-size: 16px;
+  }
+
+  .input {
+    font-size: 16px;
+    height: 40px;
+  }
+
+  .input--date {
+    width: calc(120px * var(--scale));
+  }
+
+  .topstrip {
+    flex-wrap: wrap;
+  }
+
+  /* --- ledger rows ------------------------------------------------ */
+  .log-row {
+    grid-template-columns: minmax(0, auto) 1fr minmax(0, auto) 32px;
+    gap: var(--space-sm);
+    height: auto;
+    padding: var(--space-sm) var(--space-xs);
+  }
+
+  /* --- type: stop scaling money down on a small screen ------------- */
+  .grand__value {
+    font-size: calc(28px * var(--scale));
+  }
+
+  .kpi__value {
+    font-size: calc(24px * var(--scale));
+  }
+
+  /* --- bottom tab bar --------------------------------------------- */
+  .tabbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-column: 1;
+    grid-row: 2;
+    border-top: 1px solid var(--divider);
+    background: var(--surface);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .tab {
+    display: grid;
+    gap: 2px;
+    place-items: center;
+    padding: var(--space-sm) var(--space-xs);
+    min-height: 48px;
+    color: var(--text-secondary);
+    font-size: var(--font-sm);
+    font-weight: 500;
+  }
+
+  .tab--on {
+    color: var(--accent);
+  }
+
+  .tab__count {
+    font-size: calc(var(--font-sm) - 2px);
+    color: var(--text-muted);
+  }
+
+  .tab--on .tab__count {
+    color: var(--accent);
+  }
+
+  /* --- dialogs become bottom sheets -------------------------------- */
+  .sheet,
+  .sheet--narrow {
+    width: 100vw;
+    max-width: 100vw;
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom));
+  }
+
+  dialog.centered {
+    margin: auto auto 0;
+  }
+
+  #settingsDialog {
+    margin: auto auto 0;
+    height: auto;
+    max-height: 92dvh;
+  }
+
+  .drawer {
+    width: 100vw;
+    height: auto;
+    max-height: 92dvh;
+    border-left: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .keys__row {
+    grid-template-columns: calc(96px * var(--scale)) 1fr;
+  }
+
+  .keys__desc {
+    font-size: var(--font-sm);
+  }
+}
+
+/* Very narrow phones (iPhone SE, 320px): give the price room by dropping
+   the per-line discount column's fixed width. */
+@media (max-width: 360px) {
+  .item-row {
+    grid-template-columns:
+      var(--col-num) minmax(44px, 54px) auto minmax(52px, 1fr) 52px 30px;
+  }
+
+  .kpis {
+    gap: var(--space-md);
+  }
+}
+
+/* Landscape phones are short, not narrow: reclaim vertical space. */
+@media (max-height: 460px) and (max-width: 899px) {
+  .topstrip,
+  .ledger-head {
+    padding-top: var(--space-sm);
+  }
+
+  .grand__value {
+    font-size: calc(22px * var(--scale));
+  }
+
+  .kpi__value {
+    font-size: calc(20px * var(--scale));
+  }
+}

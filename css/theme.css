@@ -1,0 +1,108 @@
+/*
+ * Design tokens — the web port of qml/Theme.qml.
+ *
+ * Single source of truth for colour, spacing, radius and type. Nothing
+ * else in the CSS hardcodes a visual value; components read from here,
+ * and dark/light plus the accent flip live by re-setting these variables.
+ *
+ * --scale is the responsive factor. On desktop app.js drives it from the
+ * window against the 1100x720 design reference (exactly like the QML
+ * Binding on Theme.uiScale) so the whole UI grows and shrinks in
+ * proportion. On phones it is pinned to 1 and the mobile layout takes
+ * over with touch-sized targets instead.
+ */
+
+:root {
+  --scale: 1;
+
+  /* --- shape ------------------------------------------------------- */
+  --radius: calc(14px * var(--scale));
+  --radius-sm: calc(10px * var(--scale));
+
+  /* --- spacing scale ------------------------------------------------ */
+  --space-xs: calc(6px * var(--scale));
+  --space-sm: calc(10px * var(--scale));
+  --space-md: calc(16px * var(--scale));
+  --space-lg: calc(24px * var(--scale));
+  --space-xl: calc(36px * var(--scale));
+
+  /* --- line-item table columns -------------------------------------- */
+  /* Shared by the sale header and every row so the two line up exactly. */
+  --col-num: calc(18px * var(--scale));
+  --col-qty: calc(56px * var(--scale));
+  --col-mult: calc(12px * var(--scale));
+  --col-price: calc(104px * var(--scale));
+  --col-disc: calc(64px * var(--scale));
+  --col-total: calc(140px * var(--scale));
+  --col-remove: calc(22px * var(--scale));
+
+  /* --- typography --------------------------------------------------- */
+  /* No web font is shipped, so this resolves to San Francisco on iOS and
+     Segoe UI on Windows — both have the tabular figures the numbers need. */
+  --font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-sm: calc(12px * var(--scale));
+  --font-body: calc(14px * var(--scale));
+  --font-md: calc(18px * var(--scale));
+  --font-lg: calc(24px * var(--scale));
+  --font-total: calc(40px * var(--scale));
+  --font-kpi: calc(30px * var(--scale));
+
+  /* --- motion ------------------------------------------------------- */
+  --anim-fast: 120ms;
+  --anim-med: 180ms;
+
+  /* --- accent (overwritten from the persisted setting) -------------- */
+  --accent: #2dd4bf;
+  /* Text drawn on top of an accent fill. The accent palette is light, so
+     this tracks the page background like the QML button does. */
+  --on-accent: #0e1116;
+}
+
+/* --- dark surfaces (the default) ------------------------------------ */
+:root,
+:root[data-theme='dark'] {
+  --bg: #0e1116;
+  --surface: #151a21;
+  --surface-alt: #1b212a;
+  --hover: #1f2630;
+
+  --text-primary: #f2f5f8;
+  --text-secondary: #9aa6b2;
+  --text-muted: #5d6875;
+
+  --divider: rgba(255, 255, 255, 0.07);
+  --danger: #f87171;
+  --scrim: rgba(0, 0, 0, 0.45);
+  --on-accent: #0e1116;
+}
+
+/* --- light surfaces (an intentional palette, not an inversion) ------- */
+:root[data-theme='light'] {
+  --bg: #fbfbfd;
+  --surface: #ffffff;
+  --surface-alt: #f3f4f6;
+  --hover: #eef0f3;
+
+  --text-primary: #10141a;
+  --text-secondary: #5b6672;
+  --text-muted: #9aa3ad;
+
+  --divider: rgba(0, 0, 0, 0.08);
+  --danger: #dc2626;
+  --scrim: rgba(0, 0, 0, 0.35);
+  /* Deliberately still dark. The desktop app paints accent-button text in
+     Theme.bg, which in light mode is near-white on a mid-tone accent —
+     about 1.8:1. Every accent in the palette is light enough that dark
+     text is the readable choice in both themes. */
+  --on-accent: #0e1116;
+}
+
+/* Honour a system preference for reduced motion: every transition in the
+   app is decorative, so drop them rather than approximate them. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --anim-fast: 0ms;
+    --anim-med: 0ms;
+  }
+}

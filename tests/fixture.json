@@ -1,0 +1,255 @@
+{
+ "priceMultiplier": 1000,
+ "discountFactor": [
+  {
+   "input": "",
+   "expected": 1.0
+  },
+  {
+   "input": "0",
+   "expected": 1.0
+  },
+  {
+   "input": "10",
+   "expected": 0.9
+  },
+  {
+   "input": "10+5",
+   "expected": 0.855
+  },
+  {
+   "input": "10+5+3",
+   "expected": 0.8293499999999999
+  },
+  {
+   "input": "50+50",
+   "expected": 0.25
+  },
+  {
+   "input": "100",
+   "expected": 0.0
+  },
+  {
+   "input": "12,5",
+   "expected": 0.875
+  },
+  {
+   "input": "12.5",
+   "expected": 0.875
+  },
+  {
+   "input": "  10 + 5  ",
+   "expected": 0.855
+  },
+  {
+   "input": "abc",
+   "expected": 1.0
+  },
+  {
+   "input": "10+abc+5",
+   "expected": 0.855
+  },
+  {
+   "input": "+",
+   "expected": 1.0
+  },
+  {
+   "input": "++",
+   "expected": 1.0
+  },
+  {
+   "input": "-10",
+   "expected": 1.1
+  },
+  {
+   "input": "10+",
+   "expected": 0.9
+  },
+  {
+   "input": "0+0",
+   "expected": 1.0
+  }
+ ],
+ "parseUserDate": [
+  {
+   "input": "",
+   "expected": ""
+  },
+  {
+   "input": "  ",
+   "expected": ""
+  },
+  {
+   "input": "2026-08-04",
+   "expected": "2026-08-04"
+  },
+  {
+   "input": "04/08/2026",
+   "expected": "2026-08-04"
+  },
+  {
+   "input": "4/8/2026",
+   "expected": "2026-08-04"
+  },
+  {
+   "input": "04-08-2026",
+   "expected": "2026-08-04"
+  },
+  {
+   "input": "04/08/26",
+   "expected": "2026-08-04"
+  },
+  {
+   "input": "04-08-26",
+   "expected": "2026-08-04"
+  },
+  {
+   "input": "31/02/2026",
+   "expected": null
+  },
+  {
+   "input": "29/02/2024",
+   "expected": "2024-02-29"
+  },
+  {
+   "input": "29/02/2023",
+   "expected": null
+  },
+  {
+   "input": "1/1/00",
+   "expected": "2000-01-01"
+  },
+  {
+   "input": "1/1/68",
+   "expected": "2068-01-01"
+  },
+  {
+   "input": "1/1/69",
+   "expected": "1969-01-01"
+  },
+  {
+   "input": "1/1/99",
+   "expected": "1999-01-01"
+  },
+  {
+   "input": "13/13/2026",
+   "expected": null
+  },
+  {
+   "input": "0/1/2026",
+   "expected": null
+  },
+  {
+   "input": "not a date",
+   "expected": null
+  },
+  {
+   "input": "2026/08/04",
+   "expected": null
+  },
+  {
+   "input": "2026-13-01",
+   "expected": null
+  },
+  {
+   "input": "31/12/1999",
+   "expected": "1999-12-31"
+  }
+ ],
+ "formatDateDisplay": [
+  {
+   "input": "",
+   "expected": ""
+  },
+  {
+   "input": "2026-08-04",
+   "expected": "04/08/2026"
+  },
+  {
+   "input": "1999-12-31",
+   "expected": "31/12/1999"
+  },
+  {
+   "input": "2024-02-29",
+   "expected": "29/02/2024"
+  },
+  {
+   "input": "garbage",
+   "expected": "garbage"
+  }
+ ],
+ "lineTotal": [
+  {
+   "qty": 1,
+   "price": 0,
+   "discount": "",
+   "expected": 0.0
+  },
+  {
+   "qty": 1,
+   "price": 80,
+   "discount": "",
+   "expected": 80000.0
+  },
+  {
+   "qty": 3,
+   "price": 80,
+   "discount": "",
+   "expected": 240000.0
+  },
+  {
+   "qty": 2,
+   "price": 50,
+   "discount": "10+5",
+   "expected": 85500.0
+  },
+  {
+   "qty": 1,
+   "price": 1,
+   "discount": "",
+   "expected": 1000.0
+  },
+  {
+   "qty": 0,
+   "price": 100,
+   "discount": "",
+   "expected": 0.0
+  },
+  {
+   "qty": -2,
+   "price": 50,
+   "discount": "",
+   "expected": -100000.0
+  },
+  {
+   "qty": 2.5,
+   "price": 40,
+   "discount": "",
+   "expected": 100000.0
+  },
+  {
+   "qty": 1,
+   "price": 12.5,
+   "discount": "",
+   "expected": 12500.0
+  },
+  {
+   "qty": 4,
+   "price": 50,
+   "discount": "10+5",
+   "expected": 171000.0
+  },
+  {
+   "qty": 1,
+   "price": 100,
+   "discount": "100",
+   "expected": 0.0
+  },
+  {
+   "qty": 3,
+   "price": 80,
+   "discount": "12,5",
+   "expected": 210000.0
+  }
+ ]
+}
