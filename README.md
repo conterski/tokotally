@@ -66,11 +66,21 @@ under the Grand Total so the running figure stays visible while typing.
 It replaces the tab bar while open, the way a system keyboard would.
 
 ```
-7 8 9 ⌫
-4 5 6 ±
-1 2 3 ⏎
-. 0 0 ⏎
+◀   ▲/▼   ▶
+7 8 9  ⌫
+4 5 6  ±
+1 2 3  ⏎
+0 0 .  ⏎
 ```
+
+A short navigation strip runs across the top: ◀ ▶ step between fields,
+▲ ▼ between rows. It is deliberately shallower than a key row — those
+pixels come straight off the item list — so the stacked ▲/▼ halves are
+wide and shallow rather than square.
+
+Backspace deletes a character, and once the field is empty it steps back
+to the previous one, following whichever entry flow is set (it reuses
+Shift+Enter's rule rather than restating it).
 
 The fourth-column key adapts to the focused field, offering the one
 non-digit character that field accepts: `−` on Qty (so returns and

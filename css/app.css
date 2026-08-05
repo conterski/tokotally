@@ -208,14 +208,61 @@ button {
   display: none;
 }
 
+/* Navigation strip: one short row across the pad's full width, with up
+   and down stacked in the middle cell. Deliberately shorter than a key
+   row — it is used far less than the digits, and every pixel here comes
+   straight off the item list. */
+.numpad__nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-xs);
+  /* Still shorter than a key row, but tall enough that the two stacked
+     halves stay hittable — they end up wide and shallow rather than
+     small, which a thumb forgives. */
+  height: 44px;
+  max-width: 520px;
+  margin: 0 auto var(--space-xs);
+}
+
+.np-nav-stack {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+
+.np-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: background-color 80ms;
+}
+
+.np-nav:active {
+  background: var(--hover);
+}
+
+/* The stacked halves are short, so they run the full width of their
+   cell — a wide, shallow target is still an easy thumb hit. */
+.icon--nav {
+  font-size: 10px;
+}
+
 .numpad__keys {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  /* 0 takes the wide left slot with the decimal point beside it, the
+     usual calculator arrangement. */
   grid-template-areas:
-    'k7  k8 k9 bs'
-    'k4  k5 k6 ctx'
-    'k1  k2 k3 ent'
-    'dot k0 k0 ent';
+    'k7 k8 k9  bs'
+    'k4 k5 k6  ctx'
+    'k1 k2 k3  ent'
+    'k0 k0 dot ent';
   gap: var(--space-xs);
   max-width: 520px;
   margin: 0 auto;
@@ -1427,6 +1474,10 @@ dialog.centered {
 
   .np-key--enter {
     font-size: 22px;
+  }
+
+  .numpad__nav {
+    height: 36px;
   }
 }
 

@@ -17,7 +17,7 @@
  * dismisses or restores it by hand.
  */
 
-import { el } from './common.js';
+import { el, icon } from './common.js';
 
 // 4x4: digits in the classic phone arrangement, utilities down the right.
 const LAYOUT = [
@@ -33,8 +33,22 @@ const LAYOUT = [
   { label: '2', area: 'k2', ch: '2' },
   { label: '3', area: 'k3', ch: '3' },
   { label: '↵', area: 'ent', action: 'enter', enter: true, aria: 'Enter' },
-  { label: '.', area: 'dot', ch: '.' },
   { label: '0', area: 'k0', ch: '0' },
+  { label: '.', area: 'dot', ch: '.' },
+];
+
+/**
+ * The navigation strip above the keys: ◀ on the left, ▲ over ▼ in the
+ * middle, ▶ on the right. Up and down reuse the arrow-key handlers as
+ * they are; left and right park the caret at the matching edge first,
+ * because those handlers only cross fields from the edge of the text —
+ * fine while typing, but a dedicated button should always move.
+ */
+const NAV = [
+  { dir: 'left', rotate: -90, aria: 'Previous field' },
+  { dir: 'up', rotate: 0, aria: 'Row above' },
+  { dir: 'down', rotate: 180, aria: 'Row below' },
+  { dir: 'right', rotate: 90, aria: 'Next field' },
 ];
 
 /**
@@ -119,6 +133,35 @@ export class Numpad {
   }
 
   build() {
+    this.container.replaceChildren(this.buildNav(), this.buildKeys());
+  }
+
+  /** ◀ | ▲ over ▼ | ▶, spanning the pad's full width in one short strip. */
+  buildNav() {
+    const nav = el('div', { class: 'numpad__nav' });
+    const make = (spec) => {
+      const button = el(
+        'button',
+        {
+          class: `np-nav np-nav--${spec.dir}`,
+          type: 'button',
+          tabindex: '-1',
+          'aria-label': spec.aria,
+        },
+        icon('i-tri', 'icon--nav')
+      );
+      button.querySelector('svg').style.transform = `rotate(${spec.rotate}deg)`;
+      button.addEventListener('pointerdown', (e) => e.preventDefault());
+      button.addEventListener('click', () => this.navigate(spec.dir));
+      return button;
+    };
+    const [left, up, down, right] = NAV.map(make);
+    // Up and down share the middle cell, stacked, as in a d-pad.
+    nav.append(left, el('div', { class: 'np-nav-stack' }, [up, down]), right);
+    return nav;
+  }
+
+  buildKeys() {
     const pad = el('div', { class: 'numpad__keys' });
     for (const key of LAYOUT) {
       const classes = ['np-key'];
@@ -139,7 +182,33 @@ export class Numpad {
       this.keys.set(key.area, button);
       pad.append(button);
     }
-    this.container.replaceChildren(pad);
+    return pad;
+  }
+
+  /** Move focus with the nav strip, reusing the arrow-key handlers. */
+  navigate(direction) {
+    const field = this.field;
+    if (!field) return;
+    if (direction === 'up' || direction === 'down') {
+      this.sendKey(field, direction === 'up' ? 'ArrowUp' : 'ArrowDown');
+      return;
+    }
+    // Park the caret on the edge the handler looks for, so the button
+    // moves whether or not the user was mid-number.
+    const at = direction === 'left' ? 0 : field.value.length;
+    field.setSelectionRange(at, at);
+    this.sendKey(field, direction === 'left' ? 'ArrowLeft' : 'ArrowRight');
+  }
+
+  sendKey(field, key, extra = {}) {
+    field.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...extra,
+      })
+    );
   }
 
   /**
@@ -226,9 +295,7 @@ export class Numpad {
     const field = this.field;
     if (!field) return;
     if (key.action === 'enter') {
-      field.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
-      );
+      this.sendKey(field, 'Enter');
       return;
     }
     if (key.action === 'backspace') {
@@ -256,6 +323,13 @@ export class Numpad {
 
   backspace() {
     const field = this.field;
+    if (field.value.length === 0) {
+      // Nothing left to rub out: step back a field instead of doing
+      // nothing. Shift+Enter already encodes "one step backwards" for
+      // whichever entry flow is set, so reuse it rather than restate it.
+      this.sendKey(field, 'Enter', { shiftKey: true });
+      return;
+    }
     const start = field.selectionStart ?? field.value.length;
     const end = field.selectionEnd ?? start;
     let next;
