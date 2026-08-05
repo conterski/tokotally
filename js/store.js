@@ -62,6 +62,10 @@ export class SettingsStore extends Emitter {
     this.accent = values.accent ?? '#2dd4bf';
     this.darkMode = (values.dark_mode ?? '1') === '1';
     this.discountEnabled = (values.discount_enabled ?? '0') === '1';
+    // How Enter walks the grid. 'row' is the desktop app's zig-zag —
+    // Qty, Price, down to the next line. 'column' fills the whole Qty
+    // column first, then the whole Price column.
+    this.entryFlow = values.entry_flow === 'column' ? 'column' : 'row';
   }
 
   static async load(db) {
@@ -105,6 +109,13 @@ export class SettingsStore extends Emitter {
     if (next === this.discountEnabled) return;
     this.discountEnabled = next;
     this._write('discount_enabled', next ? '1' : '0');
+  }
+
+  setEntryFlow(v) {
+    const next = v === 'column' ? 'column' : 'row';
+    if (next === this.entryFlow) return;
+    this.entryFlow = next;
+    this._write('entry_flow', next);
   }
 
   /** Format helpers bound to the current preferences. */
@@ -462,10 +473,26 @@ export class SaleStore extends Emitter {
    */
   ensureTrailingBlank(row) {
     const last = this.items.length - 1;
-    const item = this.items[last];
-    if (row !== last || rowBlank(item)) return false;
+    if (row !== last || rowBlank(this.items[last])) return false;
+    return this._appendBlank();
+  }
+
+  /**
+   * Append a blank row when `row` is the last one, whatever it holds.
+   *
+   * Column-first entry walks down the Qty column before any price
+   * exists, so it cannot use ensureTrailingBlank's "only once the line
+   * carries a price" rule — every row would still look blank.
+   */
+  appendRowAfter(row) {
+    if (row !== this.items.length - 1) return false;
+    return this._appendBlank();
+  }
+
+  _appendBlank() {
+    const previous = this.items[this.items.length - 1];
     const next = blankRow();
-    next.discount = item.discount || '';
+    next.discount = previous.discount || '';
     this.items.push(next);
     this.emit('structure', { appended: this.items.length - 1 });
     return true;

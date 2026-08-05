@@ -112,11 +112,27 @@ programmatic `focus()` outside a user gesture.
 
 ## Keyboard
 
-Unchanged from the desktop app. `Enter` walks Qty → Price → next line
-(creating it as it goes); `Enter` on the last line's empty Price
-completes the sale; `Shift+Enter` walks back; `Ctrl+Enter` completes
-from anywhere; arrows move around the grid; `3*80` types a whole line in
-one field; `Esc` clears with undo; `?` or `F1` shows the cheatsheet.
+`Ctrl+Enter` completes the sale from anywhere, arrows move around the
+grid, `3*80` types a whole line in one field, `Esc` clears with undo,
+and `?` or `F1` shows the cheatsheet.
+
+What `Enter` does depends on **Settings → Entry flow**:
+
+**Row (Z)** — the desktop app's order, and the default. Enter walks
+Qty → Price → down to the next line, creating it as it goes; Enter on
+the last line's empty Price completes the sale.
+
+**Column (N)** — enter one column at a time. Enter walks straight down
+the Qty column, appending rows as it goes. Leaving a Qty untouched and
+pressing Enter means the quantities are done, so it hops to the top of
+the Price column; Enter then walks down the prices, and Enter on the
+trailing empty Price completes the sale.
+
+`Shift+Enter` reverses whichever flow is active — back a field in Row,
+back up the same column in Column. An empty Price part-way down the
+column is a line the user chose to skip, so it steps over rather than
+completing; only the trailing row ends the sale. The cheatsheet rewrites
+itself to match the chosen flow.
 
 ## Storage
 

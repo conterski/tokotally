@@ -64,6 +64,9 @@ const refs = {
   themeLight: $('#themeLight'),
   discOn: $('#discOn'),
   discOff: $('#discOff'),
+  flowRow: $('#flowRow'),
+  flowColumn: $('#flowColumn'),
+  flowNote: $('#flowNote'),
   swatches: $('#swatches'),
   decMinus: $('#decMinus'),
   decPlus: $('#decPlus'),
@@ -80,17 +83,31 @@ const refs = {
   keysList: $('#keysList'),
 };
 
-const SHORTCUTS = [
-  ['Enter', "Next field; on the last line's empty Price, complete the sale"],
-  ['Ctrl+Enter', 'Complete the sale from anywhere'],
-  ['Shift+Enter', 'Jump back to the previous field'],
-  ['3 * 80', 'Quantity × price in one field (also 3x80)'],
-  ['↑  ↓', 'Move between line rows'],
-  ['←  →', 'Move between Qty and Price at a field edge'],
-  ['Tab', 'Next field'],
-  ['Esc', 'Clear the entry (with undo) · close a dialog'],
-  ['?  /  F1', 'Show or hide this help'],
-];
+/** The cheatsheet, whose Enter rows depend on the chosen entry flow. */
+function shortcutRows(entryFlow) {
+  const enter =
+    entryFlow === 'column'
+      ? [
+          ['Enter', 'Walk down the column you are in'],
+          ['Enter on empty Qty', 'Jump across to the Price column'],
+          ['Enter on empty Price', 'Complete the sale'],
+          ['Shift+Enter', 'Back up the same column'],
+        ]
+      : [
+          ['Enter', "Next field; on the last line's empty Price, complete the sale"],
+          ['Shift+Enter', 'Jump back to the previous field'],
+        ];
+  return [
+    ...enter,
+    ['Ctrl+Enter', 'Complete the sale from anywhere'],
+    ['3 * 80', 'Quantity × price in one field (also 3x80)'],
+    ['↑  ↓', 'Move between line rows'],
+    ['←  →', 'Move between Qty and Price at a field edge'],
+    ['Tab', 'Next field'],
+    ['Esc', 'Clear the entry (with undo) · close a dialog'],
+    ['?  /  F1', 'Show or hide this help'],
+  ];
+}
 
 async function main() {
   const db = await Database.open();
@@ -132,6 +149,8 @@ async function main() {
       applyTheme(settings);
       salePane.refresh();
       ledgerPane.refresh();
+      // The cheatsheet's Enter rows describe the chosen flow.
+      buildHelp(settings.entryFlow);
     },
     // A restore replaces every store's contents, so re-hydrate from disk
     // rather than trying to patch the in-memory state.
@@ -162,7 +181,8 @@ async function main() {
   drawer.init();
   numpad.init();
 
-  buildHelp();
+  wireHelp();
+  buildHelp(settings.entryFlow);
   wireTabs();
   wireShortcuts({ sale, salePane, drawer });
   applyTheme(settings);
@@ -236,9 +256,9 @@ function syncViewportHeight() {
   if (vv && vv.offsetTop === 0 && window.scrollY !== 0) window.scrollTo(0, 0);
 }
 
-function buildHelp() {
+function buildHelp(entryFlow) {
   const frag = document.createDocumentFragment();
-  for (const [key, desc] of SHORTCUTS) {
+  for (const [key, desc] of shortcutRows(entryFlow)) {
     frag.append(
       el('div', { class: 'keys__row' }, [
         el('span', { class: 'keys__key', text: key }),
@@ -247,6 +267,9 @@ function buildHelp() {
     );
   }
   refs.keysList.replaceChildren(frag);
+}
+
+function wireHelp() {
   refs.helpClose.addEventListener('click', () => refs.helpDialog.close());
   refs.helpDialog.addEventListener('cancel', (e) => {
     e.preventDefault();

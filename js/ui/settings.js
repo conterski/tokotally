@@ -31,6 +31,10 @@ export class SettingsDrawer {
     refs.discOff.addEventListener('click', () =>
       settings.setDiscountEnabled(false)
     );
+    refs.flowRow.addEventListener('click', () => settings.setEntryFlow('row'));
+    refs.flowColumn.addEventListener('click', () =>
+      settings.setEntryFlow('column')
+    );
     refs.decMinus.addEventListener('click', () =>
       settings.setDecimals(settings.decimals - 1)
     );
@@ -86,6 +90,13 @@ export class SettingsDrawer {
     refs.themeLight.classList.toggle('btn--accent', !settings.darkMode);
     refs.discOn.classList.toggle('btn--accent', settings.discountEnabled);
     refs.discOff.classList.toggle('btn--accent', !settings.discountEnabled);
+    const column = settings.entryFlow === 'column';
+    refs.flowRow.classList.toggle('btn--accent', !column);
+    refs.flowColumn.classList.toggle('btn--accent', column);
+    refs.flowNote.textContent = column
+      ? 'Enter fills every Qty down the list, then every Price. An empty ' +
+        'Qty jumps to the prices; an empty Price completes the sale.'
+      : 'Enter goes Qty → Price → next line, the way the desktop app works.';
     refs.decValue.textContent = String(settings.decimals);
     if (document.activeElement !== refs.currencyField) {
       refs.currencyField.value = settings.currency;

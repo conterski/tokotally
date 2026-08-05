@@ -349,10 +349,19 @@ export class SalePane {
         return;
       }
       if (e.shiftKey) {
-        // Backward through the same chain Enter walks forward.
+        // Backward through the same chain Enter walks forward, which
+        // differs per flow: column entry retreats up its own column.
+        if (this.settings.entryFlow === 'column') {
+          this.focusCell(index - 1, col);
+          return;
+        }
         if (col === COL.QTY) this.focusCell(index - 1, COL.PRICE);
         else if (col === COL.PRICE) this.focusCell(index, COL.QTY);
         else this.focusCell(index, COL.PRICE);
+        return;
+      }
+      if (this.settings.entryFlow === 'column') {
+        this.enterColumnFlow(ctx);
         return;
       }
       if (col === COL.QTY) {
@@ -435,6 +444,54 @@ export class SalePane {
         this.focusCell(index + 1, COL.QTY);
       }
     }
+  }
+
+  /**
+   * Enter in column-first ("N") flow.
+   *
+   * Enter walks straight down whichever column you are in. Leaving a Qty
+   * untouched means the quantities are done, so it hops to the top of
+   * the Price column; an empty Price on the last row completes the sale.
+   * That gives: all quantities, across, all prices.
+   */
+  enterColumnFlow(ctx) {
+    const { index, col, isLast, item, qty, price } = ctx;
+
+    if (col === COL.DISC) {
+      // The discount column already walks downward in both flows.
+      this.focusCell(index + 1, COL.DISC);
+      return;
+    }
+
+    if (col === COL.QTY) {
+      // "Nothing typed here" is either an untouched default 1 or a
+      // field the user cleared — both mean the Qty column is finished.
+      const untouched = !this.confirmed.has(item) || qty.value.trim() === '';
+      if (untouched) {
+        this.focusCell(0, COL.PRICE);
+        return;
+      }
+      this.confirmed.add(item);
+      if (/[*xX]/.test(qty.value)) {
+        // The shorthand filled a price too; tidy Qty back to the number.
+        setValue(qty, String(qty.value).split(/[*xX]/)[0].trim());
+      }
+      // Append unconditionally: no price exists yet during this pass.
+      this.sale.appendRowAfter(index);
+      this.focusCell(index + 1, COL.QTY);
+      return;
+    }
+
+    // Price column.
+    if (price.value.length === 0) {
+      // Only the trailing row ends the sale; a gap mid-column is just
+      // a line the user chose to skip, so step over it.
+      if (isLast) this.sale.completeSale();
+      else this.focusCell(index + 1, COL.PRICE);
+      return;
+    }
+    this.sale.ensureTrailingBlank(index);
+    this.focusCell(index + 1, COL.PRICE);
   }
 
   /**
