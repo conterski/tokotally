@@ -35,7 +35,15 @@ const dateFmt = new Intl.DateTimeFormat('en-GB', {
 });
 
 export class SalePane {
-  constructor({ sale, settings, refs, onOpenSettings, onToast, useNumpad }) {
+  constructor({
+    sale,
+    settings,
+    refs,
+    onOpenSettings,
+    onToast,
+    useNumpad,
+    onFieldFocused,
+  }) {
     this.sale = sale;
     this.settings = settings;
     this.refs = refs;
@@ -43,6 +51,10 @@ export class SalePane {
     this.onToast = onToast;
     // On touch the in-app number pad replaces the system keyboard.
     this.useNumpad = Boolean(useNumpad);
+    // Told whenever this pane moves focus itself, so the number pad can
+    // follow without depending on the browser honouring a programmatic
+    // focus (iOS is choosy about those outside a user gesture).
+    this.onFieldFocused = onFieldFocused || (() => {});
 
     // Which rows have had their Qty committed. Keyed by the item object
     // itself, so the flag survives a re-render and disappears with the
@@ -451,6 +463,7 @@ export class SalePane {
     // scrollRowIntoView, which moves the minimum distance and smoothly.
     field.focus({ preventScroll: true });
     field.select();
+    this.onFieldFocused(field);
     this.scrollRowIntoView(row);
   }
 

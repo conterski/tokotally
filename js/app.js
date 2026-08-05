@@ -52,6 +52,8 @@ const refs = {
   logEmpty: $('#logEmpty'),
   runningTotal: $('#runningTotal'),
   numpad: $('#numpad'),
+  numpadToggle: $('#numpadToggle'),
+  numpadToggleLabel: $('#numpadToggleLabel'),
   // tabs
   tabSale: $('#tabSale'),
   tabLedger: $('#tabLedger'),
@@ -110,6 +112,9 @@ async function main() {
     useNumpad: touch,
     onOpenSettings: () => drawer.open(),
     onToast: toast,
+    // Keeps the pad on the field this pane just moved to — notably the
+    // first Qty after a sale is completed.
+    onFieldFocused: (field) => numpad.attach(field),
   });
   const ledgerPane = new LedgerPane({
     ledger,
@@ -148,6 +153,8 @@ async function main() {
   const numpad = new Numpad({
     container: refs.numpad,
     app: refs.app,
+    toggle: refs.numpadToggle,
+    toggleLabel: refs.numpadToggleLabel,
     enabled: touch,
     onLayoutChange: () => salePane.scrollFocusedIntoView(),
   });
@@ -178,8 +185,10 @@ async function main() {
   });
 
   // Start where the desktop app starts: in the first Qty field. Skipped
-  // on touch so a phone doesn't open the keyboard the moment it loads.
-  if (!isTouch()) salePane.focusCell(0, 0);
+  // on touch so a phone doesn't raise the number pad the moment it
+  // loads — the same `touch` the pad itself is keyed off, so the two
+  // cannot disagree.
+  if (!touch) salePane.focusCell(0, 0);
 
   registerServiceWorker();
 }

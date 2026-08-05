@@ -76,6 +76,18 @@ real Enter keydown, so the whole Enter flow is reused rather than
 reimplemented. A device with a physical keyboard never sees the pad and
 keeps `inputmode="decimal"`.
 
+**Showing and hiding.** Tapping any line-item field opens the pad, and a
+**Show/Hide numpad** button above Complete Sale dismisses or restores it
+by hand. Hiding also blurs the field, so tapping that same input again
+brings the pad straight back — otherwise a field that still held focus
+could never reopen it. Restoring returns to the field you were last in.
+
+Anything that moves focus reopens the pad, so completing a sale — which
+refocuses the first Qty — leaves you ready to type the next one. The
+sale pane tells the pad directly when it moves focus rather than relying
+on the focus event alone, since iOS is choosy about honouring a
+programmatic `focus()` outside a user gesture.
+
 ## Keyboard
 
 Unchanged from the desktop app. `Enter` walks Qty → Price → next line

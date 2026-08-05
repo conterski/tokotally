@@ -140,10 +140,23 @@ button {
 /* ==================================================================== */
 /* number pad (touch only)                                              */
 /* ==================================================================== */
-/* Hidden by default and on any device with a fine pointer; app.js sets
-   data-numpad on the shell when a line-item field takes focus. */
-.numpad {
+/* Both the pad and its toggle are hidden on any device with a fine
+   pointer. The Numpad module sets data-numpad on the shell when it is
+   available at all ('off'), and flips it to 'open' while showing. */
+/* .btn.numpad-toggle, not .numpad-toggle: the toggle is also a .btn, and
+   .btn's own display would otherwise win on source order and leak the
+   button onto desktop. */
+.numpad,
+.btn.numpad-toggle {
   display: none;
+}
+
+.app[data-numpad] .numpad-toggle {
+  display: flex;
+  min-height: 34px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .app[data-numpad='open'] .numpad {

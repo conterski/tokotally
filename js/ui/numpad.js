@@ -6,12 +6,15 @@
  * the Grand Total so the running figure stays visible while typing, and
  * it hides the tab bar while open, exactly as a system keyboard would.
  *
- * Keys write into the focused input through the same path a keystroke
+ * Keys write into the target input through the same path a keystroke
  * takes — validate, set, dispatch `input` — so the store, the line
  * totals and the field validators all behave identically whether the
  * digits came from here or a real keyboard. Enter dispatches a genuine
  * Enter keydown, so the whole Enter flow (advance, append a row,
  * complete the sale) is reused rather than reimplemented.
+ *
+ * The pad follows focus automatically, and a button above Complete Sale
+ * dismisses or restores it by hand.
  */
 
 import { el } from './common.js';
@@ -46,28 +49,53 @@ const CONTEXT_KEY = {
   price: null,
 };
 
+const FIELD_SELECTOR = '.item-row .input';
+
 export class Numpad {
-  constructor({ container, app, enabled, onLayoutChange }) {
+  constructor({ container, app, toggle, toggleLabel, enabled, onLayoutChange }) {
     this.container = container;
     this.app = app;
+    this.toggleButton = toggle;
+    this.toggleLabel = toggleLabel;
     this.enabled = enabled;
     this.onLayoutChange = onLayoutChange || (() => {});
+    // The input the keys write into. Kept separately from document focus
+    // so the pad still works if a browser declines a programmatic focus.
     this.field = null;
+    // Where to return when the pad is switched back on by hand.
+    this.lastField = null;
     this.keys = new Map();
   }
 
   init() {
     if (!this.enabled) return;
     this.build();
+    // The attribute's presence marks the pad as available (and reveals
+    // the toggle); its value is the open/closed state.
+    this.app.dataset.numpad = 'off';
+
+    if (this.toggleButton) {
+      // Same reason the keys do it: taking focus would blur the input,
+      // and the resulting focusout would close the pad *before* the
+      // click landed, so the button could never toggle it off.
+      this.toggleButton.addEventListener('pointerdown', (e) => e.preventDefault());
+      this.toggleButton.addEventListener('click', () => this.toggle());
+    }
 
     // Follow focus: show for a line-item field, hide for anything else
     // (the sale-date field and the settings inputs keep the real
     // keyboard, since they take text this pad cannot produce).
     document.addEventListener('focusin', (e) => {
-      const field = e.target.closest?.('.item-row .input');
+      const field = e.target.closest?.(FIELD_SELECTOR);
       if (field) this.attach(field);
       else this.detach();
     });
+
+    this.renderToggle();
+  }
+
+  get isOpen() {
+    return this.app.dataset.numpad === 'open';
   }
 
   build() {
@@ -94,16 +122,28 @@ export class Numpad {
     this.container.replaceChildren(pad);
   }
 
+  /**
+   * Point the pad at a field and show it.
+   *
+   * Called both from the focusin listener and directly by the sale pane
+   * whenever it moves focus itself — so completing a sale, which
+   * refocuses the first Qty, brings the pad straight back even if the
+   * browser ignores the programmatic focus.
+   */
   attach(field) {
+    if (!this.enabled || !field) return;
     this.field = field;
+    this.lastField = field;
+
     const context = CONTEXT_KEY[field.dataset.area] ?? null;
     const button = this.keys.get('ctx');
     button.textContent = context ? context.label : '';
     button.disabled = !context;
     this.context = context;
 
-    if (this.app.dataset.numpad !== 'open') {
+    if (!this.isOpen) {
       this.app.dataset.numpad = 'open';
+      this.renderToggle();
       // The list just got shorter; keep the focused row in view.
       this.onLayoutChange();
     }
@@ -111,9 +151,44 @@ export class Numpad {
 
   detach() {
     this.field = null;
-    if (this.app.dataset.numpad === 'open') {
-      delete this.app.dataset.numpad;
+    if (this.isOpen) {
+      this.app.dataset.numpad = 'off';
+      this.renderToggle();
       this.onLayoutChange();
+    }
+  }
+
+  /**
+   * The button above Complete Sale.
+   *
+   * Off also blurs the field, so tapping that same input again re-fires
+   * focusin and brings the pad right back — otherwise a field that
+   * still held focus could never reopen it.
+   */
+  toggle() {
+    if (!this.enabled) return;
+    if (this.isOpen) {
+      this.field?.blur();
+      this.detach();
+      return;
+    }
+    const target =
+      this.lastField && this.lastField.isConnected
+        ? this.lastField
+        : document.querySelector(FIELD_SELECTOR);
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    target.select?.();
+    // focus() normally fires focusin, which attaches; attach anyway so
+    // the pad appears even where that focus is refused.
+    this.attach(target);
+  }
+
+  renderToggle() {
+    if (!this.toggleButton) return;
+    this.toggleButton.setAttribute('aria-pressed', String(this.isOpen));
+    if (this.toggleLabel) {
+      this.toggleLabel.textContent = this.isOpen ? 'Hide numpad' : 'Show numpad';
     }
   }
 
