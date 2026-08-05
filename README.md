@@ -27,6 +27,14 @@ chrome.
 > the app works fine, it just isn't cached for offline use. To get
 > offline on the phone, host the folder anywhere with https.
 
+The service worker serves **network-first**, falling back to its cache
+after a 3s timeout. So an update lands on the first reload, and offline
+still works. It used to be stale-while-revalidate, which was quicker to
+launch but always served the *previous* build first — and since files
+revalidate independently, one reload could pair new markup with old CSS.
+Being reliably current beats a few milliseconds on a load that is
+already local.
+
 ## Layout
 
 One DOM, two layouts, switching at 900px.

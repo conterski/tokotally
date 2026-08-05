@@ -2,14 +2,17 @@
  * Service worker: makes the app usable with no network at all.
  *
  * The whole app is a handful of static files, so they are precached on
- * install and served cache-first. Bump CACHE when any of them changes —
- * the old cache is dropped on activate.
+ * install. Serving is network-first (see below), with that cache as the
+ * offline fallback. Bumping CACHE drops the old one on activate.
  *
  * Note this only runs in a secure context (https, or localhost). Over a
  * plain-http LAN address the app still works; it just isn't cached.
  */
 
-const CACHE = 'tokotally-v1';
+const CACHE = 'tokotally-v2';
+
+// How long to wait for the network before falling back to the cache.
+const NETWORK_TIMEOUT = 3000;
 
 const ASSETS = [
   '.',
@@ -56,45 +59,52 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-/**
- * Navigations are network-first so a running browser picks up a new
- * version of the app as soon as it is online, and fall back to the
- * cached shell when it is not.
- */
-function networkFirst(request) {
-  return fetch(request)
-    .then((response) => {
-      if (response.ok) {
-        const copy = response.clone();
-        caches.open(CACHE).then((cache) => cache.put(request, copy));
+/** fetch() that gives up after NETWORK_TIMEOUT so a bad signal can't hang. */
+function fromNetwork(request) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('network timeout')), NETWORK_TIMEOUT);
+    fetch(request).then(
+      (response) => {
+        clearTimeout(timer);
+        resolve(response);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
       }
-      return response;
-    })
-    .catch(() => caches.match(request).then((hit) => hit || caches.match('index.html')));
+    );
+  });
 }
 
 /**
- * Assets are stale-while-revalidate: the cached copy answers straight
- * away (so a cold, offline launch is instant), while a fresh copy is
- * fetched in the background for next time.
+ * Everything is network-first, with the cache as the offline fallback.
  *
- * Plain cache-first would be faster to write but pins every visitor to
- * whatever shipped first — a later bug fix would never reach them unless
- * CACHE happened to be bumped in the same change. This self-heals.
+ * Stale-while-revalidate was faster but served the *previous* build on
+ * the first load after every deploy — and because each file updates
+ * independently, a reload could mix new markup with old CSS, which is
+ * exactly how the number-pad toggle came out unstyled on a phone. Being
+ * always-current matters more here than shaving a few ms off a launch
+ * that is already local. Offline is unaffected: with no network the
+ * timeout trips and the cached copy answers.
  */
-function staleWhileRevalidate(request) {
-  return caches.match(request).then((hit) => {
-    const fresh = fetch(request)
-      .then((response) => {
-        if (response.ok && response.type === 'basic') {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      })
-      .catch(() => hit);
-    return hit || fresh;
-  });
+async function networkFirst(request) {
+  try {
+    const response = await fromNetwork(request);
+    if (response.ok && response.type === 'basic') {
+      const copy = response.clone();
+      caches.open(CACHE).then((cache) => cache.put(request, copy));
+    }
+    return response;
+  } catch {
+    const hit = await caches.match(request);
+    if (hit) return hit;
+    // Offline and never cached: a navigation can still have the shell.
+    if (request.mode === 'navigate') {
+      const shell = await caches.match('index.html');
+      if (shell) return shell;
+    }
+    throw new Error('offline and uncached');
+  }
 }
 
 self.addEventListener('fetch', (event) => {
@@ -103,9 +113,5 @@ self.addEventListener('fetch', (event) => {
   // Same-origin only: never interpose on anything else.
   if (new URL(request.url).origin !== self.location.origin) return;
 
-  event.respondWith(
-    request.mode === 'navigate'
-      ? networkFirst(request)
-      : staleWhileRevalidate(request)
-  );
+  event.respondWith(networkFirst(request));
 });
