@@ -143,20 +143,51 @@ button {
 /* Both the pad and its toggle are hidden on any device with a fine
    pointer. The Numpad module sets data-numpad on the shell when it is
    available at all ('off'), and flips it to 'open' while showing. */
-/* .btn.numpad-toggle, not .numpad-toggle: the toggle is also a .btn, and
-   .btn's own display would otherwise win on source order and leak the
-   button onto desktop. */
 .numpad,
-.btn.numpad-toggle {
+.numpad-toggle {
   display: none;
 }
 
+/* Small triangle sitting on the Grand Total's own line, hard right.
+   Only appears once the pad is available (i.e. on touch). */
 .app[data-numpad] .numpad-toggle {
-  display: flex;
-  min-height: 34px;
-  font-size: var(--font-sm);
-  font-weight: 500;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
+  transition: background-color var(--anim-fast), color var(--anim-fast);
+}
+
+/* The visual is 34px but the tap area is 46px, comfortably past the
+   touch minimum without a chunky-looking control. */
+.app[data-numpad] .numpad-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.app[data-numpad] .numpad-toggle:active {
+  background: var(--hover);
+}
+
+.numpad-toggle .icon--tri {
+  font-size: 11px;
+  transition: transform var(--anim-fast);
+}
+
+/* Open: the triangle flips down — tap to send the pad back. */
+.numpad-toggle--open {
+  color: var(--accent);
+}
+
+.numpad-toggle--open .icon--tri {
+  transform: rotate(180deg);
 }
 
 .app[data-numpad='open'] .numpad {
@@ -558,7 +589,17 @@ button {
   border-top: 1px solid var(--divider);
 }
 
+/* Label + figure on the left, the number-pad toggle pushed to the right
+   edge of the same line. */
 .grand {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.grand__text {
   flex: 1;
   min-width: 0;
 }

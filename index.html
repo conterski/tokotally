@@ -51,6 +51,11 @@
           d="M12 5.6a6.4 6.4 0 1 0 0 12.8 6.4 6.4 0 0 0 0-12.8Zm0 3.9a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"
         />
       </symbol>
+      <!-- Solid triangle, drawn rather than the ▲ glyph so it looks the
+           same wherever the font falls back. Rotated 180° when open. -->
+      <symbol id="i-tri" viewBox="0 0 24 24">
+        <path d="M12 7.5 20 17H4z" />
+      </symbol>
       <symbol id="i-dots" viewBox="0 0 24 24">
         <circle cx="5" cy="12" r="2" />
         <circle cx="12" cy="12" r="2" />
@@ -110,13 +115,24 @@
 
         <div class="bottombar">
           <div class="grand">
-            <div class="grand__label">Grand Total</div>
-            <div class="grand__value" id="grandTotal">0</div>
+            <div class="grand__text">
+              <div class="grand__label">Grand Total</div>
+              <div class="grand__value" id="grandTotal">0</div>
+            </div>
+            <!-- Touch only; revealed once the number pad is available.
+                 Points up to raise the pad, down to dismiss it. -->
+            <button
+              class="numpad-toggle"
+              id="numpadToggle"
+              type="button"
+              aria-pressed="false"
+              aria-label="Show number pad"
+            >
+              <svg class="icon icon--tri" aria-hidden="true">
+                <use href="#i-tri" />
+              </svg>
+            </button>
           </div>
-          <!-- Touch only; shown once the number pad is available. -->
-          <button class="btn numpad-toggle" id="numpadToggle" aria-pressed="false">
-            <span id="numpadToggleLabel">Show numpad</span>
-          </button>
           <div class="bottombar__actions">
             <button class="btn" id="clearBtn">
               <span id="clearBtnLabel">Clear Entry</span>

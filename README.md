@@ -77,10 +77,24 @@ reimplemented. A device with a physical keyboard never sees the pad and
 keeps `inputmode="decimal"`.
 
 **Showing and hiding.** Tapping any line-item field opens the pad, and a
-**Show/Hide numpad** button above Complete Sale dismisses or restores it
-by hand. Hiding also blurs the field, so tapping that same input again
+small triangle at the right-hand end of the Grand Total line dismisses
+or restores it by hand — pointing up to raise the pad, down to send it
+away. Hiding also blurs the field, so tapping that same input again
 brings the pad straight back — otherwise a field that still held focus
 could never reopen it. Restoring returns to the field you were last in.
+
+Two things keep that button reliable on iOS, and both were needed to
+make it work on a real device:
+
+- It does **not** cancel the default on `pointerdown`. Safari can drop
+  the follow-up `click` when a pointer default is cancelled, which left
+  the button dead.
+- Focus landing on a button, the pad, or the body never dismisses the
+  pad — only focus moving to another *text input* does. Otherwise the
+  blur from pressing the button closed the pad first, so the click then
+  saw it as already closed and reopened it, and the toggle looked inert.
+  The state is also captured on press rather than read on click, so a
+  focus change in between cannot invert the action.
 
 Anything that moves focus reopens the pad, so completing a sale — which
 refocuses the first Qty — leaves you ready to type the next one. The

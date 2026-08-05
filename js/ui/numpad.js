@@ -52,12 +52,14 @@ const CONTEXT_KEY = {
 const FIELD_SELECTOR = '.item-row .input';
 
 export class Numpad {
-  constructor({ container, app, toggle, toggleLabel, enabled, onLayoutChange }) {
+  constructor({ container, app, toggle, enabled, onLayoutChange }) {
     this.container = container;
     this.app = app;
     this.toggleButton = toggle;
-    this.toggleLabel = toggleLabel;
     this.enabled = enabled;
+    // Open/closed as it was when the toggle was pressed, so a focus
+    // change between press and click cannot invert the action.
+    this.pressedWhileOpen = null;
     this.onLayoutChange = onLayoutChange || (() => {});
     // The input the keys write into. Kept separately from document focus
     // so the pad still works if a browser declines a programmatic focus.
@@ -75,20 +77,38 @@ export class Numpad {
     this.app.dataset.numpad = 'off';
 
     if (this.toggleButton) {
-      // Same reason the keys do it: taking focus would blur the input,
-      // and the resulting focusout would close the pad *before* the
-      // click landed, so the button could never toggle it off.
-      this.toggleButton.addEventListener('pointerdown', (e) => e.preventDefault());
-      this.toggleButton.addEventListener('click', () => this.toggle());
+      // Deliberately NOT preventing the default on pointerdown here.
+      // Safari on iOS can swallow the follow-up click when a pointer
+      // default is cancelled, which left the button dead on the device.
+      // Nothing needs cancelling any more: the focus rule below ignores
+      // buttons, so tapping this one cannot disturb the pad.
+      //
+      // The state is captured on press rather than read on click, so
+      // even if something does move focus in between, the tap still does
+      // what the icon showed when the user pressed it.
+      this.toggleButton.addEventListener('pointerdown', () => {
+        this.pressedWhileOpen = this.isOpen;
+      });
+      this.toggleButton.addEventListener('click', () => {
+        const wasOpen = this.pressedWhileOpen ?? this.isOpen;
+        this.pressedWhileOpen = null;
+        this.toggle(wasOpen);
+      });
     }
 
-    // Follow focus: show for a line-item field, hide for anything else
-    // (the sale-date field and the settings inputs keep the real
-    // keyboard, since they take text this pad cannot produce).
+    // Follow focus into the line items, and step aside for a field that
+    // genuinely needs the system keyboard (the sale date, the settings
+    // inputs). Everything else — buttons, the pad's own keys, the body —
+    // is ignored on purpose: tapping a button must never dismiss the
+    // pad, which is what made the toggle close and instantly reopen.
     document.addEventListener('focusin', (e) => {
-      const field = e.target.closest?.(FIELD_SELECTOR);
-      if (field) this.attach(field);
-      else this.detach();
+      const target = e.target;
+      const field = target.closest?.(FIELD_SELECTOR);
+      if (field) {
+        this.attach(field);
+      } else if (target.matches?.('input, textarea')) {
+        this.detach();
+      }
     });
 
     this.renderToggle();
@@ -141,33 +161,27 @@ export class Numpad {
     button.disabled = !context;
     this.context = context;
 
-    if (!this.isOpen) {
-      this.app.dataset.numpad = 'open';
-      this.renderToggle();
-      // The list just got shorter; keep the focused row in view.
-      this.onLayoutChange();
-    }
+    // The list just got shorter; setOpen keeps the focused row in view.
+    this.setOpen(true);
   }
 
   detach() {
     this.field = null;
-    if (this.isOpen) {
-      this.app.dataset.numpad = 'off';
-      this.renderToggle();
-      this.onLayoutChange();
-    }
+    this.setOpen(false);
   }
 
   /**
-   * The button above Complete Sale.
+   * The triangle beside the Grand Total.
    *
-   * Off also blurs the field, so tapping that same input again re-fires
-   * focusin and brings the pad right back — otherwise a field that
-   * still held focus could never reopen it.
+   * Hiding also blurs the field, so tapping that same input again
+   * re-fires focusin and brings the pad right back — otherwise a field
+   * that still held focus could never reopen it.
+   *
+   * @param wasOpen state at press time; falls back to the current state.
    */
-  toggle() {
+  toggle(wasOpen = this.isOpen) {
     if (!this.enabled) return;
-    if (this.isOpen) {
+    if (wasOpen) {
       this.field?.blur();
       this.detach();
       return;
@@ -176,20 +190,36 @@ export class Numpad {
       this.lastField && this.lastField.isConnected
         ? this.lastField
         : document.querySelector(FIELD_SELECTOR);
+    // Show the pad even with no field to return to; the next tap on a
+    // row will bind it.
+    this.setOpen(true);
     if (!target) return;
     target.focus({ preventScroll: true });
     target.select?.();
     // focus() normally fires focusin, which attaches; attach anyway so
-    // the pad appears even where that focus is refused.
+    // the pad still binds where that focus is refused.
     this.attach(target);
   }
 
+  /** Flip the shell's state attribute and repaint the toggle. */
+  setOpen(open) {
+    const next = open ? 'open' : 'off';
+    if (this.app.dataset.numpad === next) return;
+    this.app.dataset.numpad = next;
+    this.renderToggle();
+    this.onLayoutChange();
+  }
+
+  /** The triangle points up to raise the pad, down to dismiss it. */
   renderToggle() {
     if (!this.toggleButton) return;
-    this.toggleButton.setAttribute('aria-pressed', String(this.isOpen));
-    if (this.toggleLabel) {
-      this.toggleLabel.textContent = this.isOpen ? 'Hide numpad' : 'Show numpad';
-    }
+    const open = this.isOpen;
+    this.toggleButton.setAttribute('aria-pressed', String(open));
+    this.toggleButton.setAttribute(
+      'aria-label',
+      open ? 'Hide number pad' : 'Show number pad'
+    );
+    this.toggleButton.classList.toggle('numpad-toggle--open', open);
   }
 
   press(key) {

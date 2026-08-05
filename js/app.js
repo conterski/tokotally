@@ -53,7 +53,6 @@ const refs = {
   runningTotal: $('#runningTotal'),
   numpad: $('#numpad'),
   numpadToggle: $('#numpadToggle'),
-  numpadToggleLabel: $('#numpadToggleLabel'),
   // tabs
   tabSale: $('#tabSale'),
   tabLedger: $('#tabLedger'),
@@ -154,7 +153,6 @@ async function main() {
     container: refs.numpad,
     app: refs.app,
     toggle: refs.numpadToggle,
-    toggleLabel: refs.numpadToggleLabel,
     enabled: touch,
     onLayoutChange: () => salePane.scrollFocusedIntoView(),
   });
