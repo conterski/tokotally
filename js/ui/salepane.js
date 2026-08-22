@@ -18,8 +18,9 @@ const COL = { QTY: 0, PRICE: 1, DISC: 2 };
 // Ported from EditField.qml's validators. QML anchors a
 // RegularExpressionValidator implicitly; here the anchors are explicit.
 const RE = {
-  // Discount: digits, separators and '+' (the chain).
-  chain: /^[0-9.,+\s]*$/,
+  // Discount: digits, separators, '+' (the chain) and '-' for a
+  // negative percent, which reads as a surcharge.
+  chain: /^[0-9.,+\-\s]*$/,
   // Qty: an optional leading '-' (returns/refunds) plus the optional
   // "3*80" / "3x80" shorthand for a whole line in one field.
   combined: /^-?[0-9]*[.,]?[0-9]*\s*[*xX]?\s*[0-9]*[.,]?[0-9]*$/,

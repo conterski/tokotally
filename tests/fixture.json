@@ -58,15 +58,47 @@
    "expected": 1.0
   },
   {
-   "input": "-10",
-   "expected": 1.1
-  },
-  {
    "input": "10+",
    "expected": 0.9
   },
   {
    "input": "0+0",
+   "expected": 1.0
+  },
+  {
+   "input": "-10",
+   "expected": 1.1
+  },
+  {
+   "input": "-12,5",
+   "expected": 1.125
+  },
+  {
+   "input": "-10+5",
+   "expected": 1.045
+  },
+  {
+   "input": "10+-5",
+   "expected": 0.9450000000000001
+  },
+  {
+   "input": "-10+-5",
+   "expected": 1.1550000000000002
+  },
+  {
+   "input": "-",
+   "expected": 1.0
+  },
+  {
+   "input": "--",
+   "expected": 1.0
+  },
+  {
+   "input": "5-3",
+   "expected": 1.0
+  },
+  {
+   "input": "+-",
    "expected": 1.0
   }
  ],
@@ -250,6 +282,24 @@
    "price": 80,
    "discount": "12,5",
    "expected": 210000.0
+  },
+  {
+   "qty": 1,
+   "price": 100,
+   "discount": "-10",
+   "expected": 110000.00000000001
+  },
+  {
+   "qty": 2,
+   "price": 50,
+   "discount": "-10+5",
+   "expected": 104500.0
+  },
+  {
+   "qty": 3,
+   "price": 80,
+   "discount": "10+-5",
+   "expected": 226800.00000000003
   }
  ]
 }

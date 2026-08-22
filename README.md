@@ -82,11 +82,12 @@ Backspace deletes a character, and once the field is empty it steps back
 to the previous one, following whichever entry flow is set (it reuses
 Shift+Enter's rule rather than restating it).
 
-The fourth-column key adapts to the focused field, offering the one
+The fourth-column key adapts to the focused field, offering the
 non-digit character that field accepts: `−` on Qty (so returns and
-refunds are still enterable), `+` on Discount (for chains like `10+5`),
-and disabled on Price, which takes digits only. Backspace is there
-because without it a mistyped figure could not be corrected.
+refunds are still enterable) and nothing on Price, which takes digits
+only. Discount needs both `+` and `−` and has one key, so it offers
+whichever is meaningful where the caret sits — a sign at the start of a
+term, a separator anywhere else — relabelling as you type.
 
 Keys write through the same path a keystroke takes — validate against
 the field's own pattern, set, dispatch `input` — and Enter dispatches a
@@ -143,6 +144,16 @@ back up the same column in Column. An empty Price part-way down the
 column is a line the user chose to skip, so it steps over rather than
 completing; only the trailing row ends the sale. The cheatsheet rewrites
 itself to match the chosen flow.
+
+## Discounts
+
+The per-line Discount field takes a `+`-separated chain of percents:
+`10+5+3` compounds to `0.9 x 0.95 x 0.97`. A **negative** percent is a
+surcharge rather than a discount — `-10` marks the line up by 10%, and
+terms mix freely (`10+-5` is 10% off then 5% on).
+
+Malformed fragments are skipped rather than rejected, so a chain stays
+inert while it is half-typed: `-`, `--` and `5-3` all price as 1.0.
 
 ## Storage
 

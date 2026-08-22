@@ -26,7 +26,10 @@ from backend.discounts import discount_factor           # noqa: E402
 
 DISCOUNTS = [
     "", "0", "10", "10+5", "10+5+3", "50+50", "100", "12,5", "12.5",
-    "  10 + 5  ", "abc", "10+abc+5", "+", "++", "-10", "10+", "0+0",
+    "  10 + 5  ", "abc", "10+abc+5", "+", "++", "10+", "0+0",
+    # Negative percents: a surcharge rather than a discount, plus the
+    # malformed shapes the field allows on the way to a valid one.
+    "-10", "-12,5", "-10+5", "10+-5", "-10+-5", "-", "--", "5-3", "+-",
 ]
 
 DATES = [
@@ -44,6 +47,8 @@ LINES = [
     (1, 0, ""), (1, 80, ""), (3, 80, ""), (2, 50, "10+5"),
     (1, 1, ""), (0, 100, ""), (-2, 50, ""), (2.5, 40, ""),
     (1, 12.5, ""), (4, 50, "10+5"), (1, 100, "100"), (3, 80, "12,5"),
+    # A negative percent marks the line up.
+    (1, 100, "-10"), (2, 50, "-10+5"), (3, 80, "10+-5"),
 ]
 
 

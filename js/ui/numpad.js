@@ -52,16 +52,37 @@ const NAV = [
 ];
 
 /**
- * The one non-digit character each field accepts, offered on the
- * context key. Qty gets the leading minus so returns and refunds can
- * still be entered on a phone; Discount gets '+' so chains like 10+5
- * are typeable. Price takes digits only, so the key is disabled.
+ * The non-digit character each field accepts, offered on the context
+ * key. Qty gets the leading minus so returns and refunds can still be
+ * entered on a phone. Price takes digits only, so the key is disabled.
+ * Discount is decided per keystroke — see discountContext.
  */
 const CONTEXT_KEY = {
   qty: { label: '−', ch: '-' },
-  disc: { label: '+', ch: '+' },
   price: null,
 };
+
+const PLUS = { label: '+', ch: '+' };
+const MINUS = { label: '−', ch: '-' };
+
+/**
+ * The discount chain needs two characters and there is only one key, so
+ * it offers whichever is meaningful where the caret sits: at the start
+ * of a term a sign is (a negative percent being a surcharge), and
+ * anywhere else a separator is. The label updates as you type, so what
+ * the key will insert is always what it shows.
+ */
+function discountContext(field) {
+  const upToCaret = field.value.slice(0, field.selectionStart ?? field.value.length);
+  const text = upToCaret.trimEnd();
+  return text === '' || text.endsWith('+') ? MINUS : PLUS;
+}
+
+/** The context key for whichever field the pad is pointed at. */
+function contextFor(field) {
+  if (field.dataset.area === 'disc') return discountContext(field);
+  return CONTEXT_KEY[field.dataset.area] ?? null;
+}
 
 const FIELD_SELECTOR = '.item-row .input';
 
@@ -123,6 +144,12 @@ export class Numpad {
       } else if (target.matches?.('input, textarea')) {
         this.detach();
       }
+    });
+
+    // The discount key's meaning depends on where the caret is, so keep
+    // it in step with every edit — from this pad or a real keyboard.
+    document.addEventListener('input', (e) => {
+      if (e.target === this.field) this.renderContextKey();
     });
 
     this.renderToggle();
@@ -224,14 +251,20 @@ export class Numpad {
     this.field = field;
     this.lastField = field;
 
-    const context = CONTEXT_KEY[field.dataset.area] ?? null;
+    this.renderContextKey();
+
+    // The list just got shorter; setOpen keeps the focused row in view.
+    this.setOpen(true);
+  }
+
+  /** Repaint the context key for the current field and caret. */
+  renderContextKey() {
+    if (!this.field) return;
+    const context = contextFor(this.field);
     const button = this.keys.get('ctx');
     button.textContent = context ? context.label : '';
     button.disabled = !context;
     this.context = context;
-
-    // The list just got shorter; setOpen keeps the focused row in view.
-    this.setOpen(true);
   }
 
   detach() {
@@ -353,5 +386,6 @@ export class Numpad {
     field.dataset.prev = text;
     field.setSelectionRange(caret, caret);
     field.dispatchEvent(new Event('input', { bubbles: true }));
+    this.renderContextKey();
   }
 }
