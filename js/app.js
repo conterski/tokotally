@@ -20,7 +20,7 @@ import {
 } from './ui/common.js';
 import { LedgerPane } from './ui/ledgerpane.js';
 import { Numpad } from './ui/numpad.js';
-import { SalePane } from './ui/salepane.js';
+import { COL, SalePane } from './ui/salepane.js';
 import { SettingsDrawer } from './ui/settings.js';
 
 const root = document.documentElement;
@@ -36,6 +36,10 @@ const refs = {
   itemsScroll: $('#itemsScroll'),
   itemRows: $('#itemRows'),
   grandTotal: $('#grandTotal'),
+  breakdown: $('#breakdown'),
+  subtotalValue: $('#subtotalValue'),
+  ppnLabel: $('#ppnLabel'),
+  ppnValue: $('#ppnValue'),
   clearBtn: $('#clearBtn'),
   clearBtnLabel: $('#clearBtnLabel'),
   completeBtn: $('#completeBtn'),
@@ -64,6 +68,10 @@ const refs = {
   themeLight: $('#themeLight'),
   discOn: $('#discOn'),
   discOff: $('#discOff'),
+  ppnOn: $('#ppnOn'),
+  ppnOff: $('#ppnOff'),
+  ppnNote: $('#ppnNote'),
+  ppnSettingLabel: $('#ppnSettingLabel'),
   flowRow: $('#flowRow'),
   flowColumn: $('#flowColumn'),
   flowNote: $('#flowNote'),
@@ -114,9 +122,7 @@ async function main() {
   const settings = await SettingsStore.load(db);
   const ledger = new LedgerStore(db);
   const logs = await LogsStore.create(db, ledger);
-  const sale = new SaleStore(ledger);
-
-  const toast = (msg, undo) => showToast(msg, undo);
+  const sale = new SaleStore(ledger, settings);
 
   // Touch devices get the in-app number pad instead of the OS keyboard.
   const touch = isTouch();
@@ -127,7 +133,7 @@ async function main() {
     refs,
     useNumpad: touch,
     onOpenSettings: () => drawer.open(),
-    onToast: toast,
+    onToast: showToast,
     // Keeps the pad on the field this pane just moved to — notably the
     // first Qty after a sale is completed.
     onFieldFocused: (field) => numpad.attach(field),
@@ -138,13 +144,13 @@ async function main() {
     sale,
     settings,
     refs,
-    onToast: toast,
+    onToast: showToast,
   });
   const drawer = new SettingsDrawer({
     settings,
     db,
     refs,
-    onToast: toast,
+    onToast: showToast,
     onChanged: () => {
       applyTheme(settings);
       salePane.refresh();
@@ -155,16 +161,8 @@ async function main() {
     // A restore replaces every store's contents, so re-hydrate from disk
     // rather than trying to patch the in-memory state.
     onRestored: async () => {
-      const fresh = await SettingsStore.load(db);
-      Object.assign(settings, {
-        decimals: fresh.decimals,
-        currency: fresh.currency,
-        accent: fresh.accent,
-        darkMode: fresh.darkMode,
-        discountEnabled: fresh.discountEnabled,
-      });
+      await settings.reload();
       await logs.reload();
-      settings.emit('changed');
     },
   });
 
@@ -206,7 +204,7 @@ async function main() {
   // on touch so a phone doesn't raise the number pad the moment it
   // loads — the same `touch` the pad itself is keyed off, so the two
   // cannot disagree.
-  if (!touch) salePane.focusCell(0, 0);
+  if (!touch) salePane.focusCell(0, COL.QTY);
 
   registerServiceWorker();
 }
@@ -216,6 +214,8 @@ function applyTheme(settings) {
   root.dataset.theme = settings.darkMode ? 'dark' : 'light';
   root.style.setProperty('--accent', settings.accent);
   refs.app.dataset.discounts = settings.discountEnabled ? 'on' : 'off';
+  // data-ppn is the sale pane's to set: it follows the sale's own rate,
+  // not the setting (see SalePane.renderTotals).
   const bg = getComputedStyle(root).getPropertyValue('--bg').trim();
   $('#themeColor')?.setAttribute('content', bg || '#0e1116');
 }
@@ -349,9 +349,16 @@ function registerServiceWorker() {
 
 main().catch((err) => {
   console.error(err);
-  document.body.innerHTML =
-    `<div style="padding:24px;font:16px system-ui">` +
-    `<h1>TokoTally could not start</h1><p>${String(err)}</p>` +
-    `<p>If you opened this file directly, serve it over http instead — ` +
-    `browsers block local storage on <code>file://</code> pages.</p></div>`;
+  // Built as nodes rather than markup: the message is whatever the
+  // failure happened to carry, and it is not this page's job to run it.
+  const panel = el('div', { style: 'padding:24px;font:16px system-ui' }, [
+    el('h1', { text: 'TokoTally could not start' }),
+    el('p', { text: String(err) }),
+    el('p', {
+      text:
+        'If you opened this file directly, serve it over http instead — ' +
+        'browsers block local storage on file:// pages.',
+    }),
+  ]);
+  document.body.replaceChildren(panel);
 });

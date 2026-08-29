@@ -31,6 +31,11 @@
         formatMoney,
         formatNumber,
         lineTotal,
+        saleTotal,
+        subtotal,
+        ppnAmount,
+        ppnLabel,
+        PPN_RATE,
         parseField,
         parseUserDate,
         effectiveDate,
@@ -38,16 +43,30 @@
         nowStamp,
         todayIso,
       } from '../js/core.js';
+      import { Database } from '../js/db.js';
+      import { SettingsStore } from '../js/store.js';
 
       const out = document.getElementById('out');
       let pass = 0;
       let fail = 0;
 
-      function group(name) {
-        out.insertAdjacentHTML('beforeend', `<div class="group">${name}</div><ul id="g${++group.n}"></ul>`);
-        return document.getElementById(`g${group.n}`);
+      // Cases and their values are built as text nodes, never as markup.
+      // A fixture is generated data — a case whose input happened to
+      // contain a tag would otherwise be parsed as one, and a test page
+      // that can be steered by its own fixture is not a test page.
+      function element(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
       }
-      group.n = 0;
+
+      function group(name) {
+        out.append(element('div', 'group', name));
+        const list = element('ul');
+        out.append(list);
+        return list;
+      }
 
       function check(list, label, actual, expected) {
         // Floats: compare within a tolerance rather than bit-for-bit.
@@ -56,12 +75,15 @@
             ? Math.abs(actual - expected) < 1e-9
             : actual === expected;
         ok ? pass++ : fail++;
-        list.insertAdjacentHTML(
-          'beforeend',
-          `<li class="${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'} ${label}` +
-            (ok ? '' : ` — got <b>${JSON.stringify(actual)}</b>, expected <b>${JSON.stringify(expected)}</b>`) +
-            '</li>'
-        );
+        const row = element('li', ok ? 'pass' : 'fail',
+                            `${ok ? 'PASS' : 'FAIL'} ${label}`);
+        if (!ok) {
+          row.append(' — got ');
+          row.append(element('b', null, JSON.stringify(actual)));
+          row.append(', expected ');
+          row.append(element('b', null, JSON.stringify(expected)));
+        }
+        list.append(row);
       }
 
       const fixture = await (await fetch('fixture.json', { cache: 'no-store' })).json();
@@ -98,6 +120,26 @@
         );
       }
 
+      // --- PPN, the tax on top of the lines --------------------------------
+      g = group(`saleTotal (${fixture.saleTotal.length} cases from Python)`);
+      check(g, 'PPN_RATE', PPN_RATE, fixture.ppnRate);
+      for (const c of fixture.saleTotal) {
+        const at = c.rate === 0 ? 'untaxed' : `at ${c.rate}`;
+        check(g, `${c.items.length} line(s) ${at}`,
+          saleTotal(c.items, c.rate), c.expected);
+      }
+      // The parts the breakdown shows must add up to what is charged.
+      const taxed = [{ qty: 1, price: 1646, discount: '' }];
+      check(g, 'subtotal is the lines before tax', subtotal(taxed), 1646000);
+      check(g, 'ppnAmount is the tax alone',
+        ppnAmount(subtotal(taxed), PPN_RATE), 181060);
+      check(g, 'subtotal + ppn = grand total',
+        subtotal(taxed) + ppnAmount(subtotal(taxed), PPN_RATE),
+        saleTotal(taxed, PPN_RATE));
+      check(g, 'a missing rate means untaxed', saleTotal(taxed), 1646000);
+      // 0.11 * 100 is 11.000000000000002 in binary floating point.
+      check(g, 'label carries no float dust', ppnLabel(), 'PPN 11%');
+
       // --- formatting (id-ID convention, asserted directly) --------------
       g = group('formatting');
       check(g, 'formatNumber(1600000, 3)', formatNumber(1600000, 3), '1.600.000,000');
@@ -128,8 +170,133 @@
       check(g, 'effectiveDate falls back to createdAt',
         effectiveDate({ saleDate: '', createdAt: '2026-08-04 10:00:00' }), '2026-08-04');
 
-      document.getElementById('summary').innerHTML =
-        `<b class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</b>`;
+      // --- hardening: values that arrive from outside the app -----------
+      // A backup file is hand-editable and a settings row outlives the
+      // build that wrote it, so both are parsed defensively. These run
+      // against a throwaway database, not the ledger in this browser.
+      g = group('settings read back from storage');
+      const settingsOf = (values) =>
+        new SettingsStore({ setSetting: async () => {} }, values);
+
+      // A non-numeric decimals used to reach Intl.NumberFormat and throw,
+      // breaking every money readout on the page for good.
+      for (const bad of ['abc', '', null, undefined, {}]) {
+        const store = settingsOf({ decimals: bad });
+        check(g, `decimals ${JSON.stringify(bad)} -> default`, store.decimals, 3);
+      }
+      check(g, 'decimals "99" clamps', settingsOf({ decimals: '99' }).decimals, 6);
+      check(g, 'decimals "-4" clamps', settingsOf({ decimals: '-4' }).decimals, 0);
+      check(g, 'decimals "2" kept', settingsOf({ decimals: '2' }).decimals, 2);
+      let threw = false;
+      try {
+        settingsOf({ decimals: 'abc' }).money(1250000);
+      } catch {
+        threw = true;
+      }
+      check(g, 'money() survives a corrupt decimals', threw, false);
+      check(g, 'unusable accent -> default',
+        settingsOf({ accent: 'red; } body {' }).accent, '#2dd4bf');
+      check(g, 'hex accent kept', settingsOf({ accent: '#f472b6' }).accent, '#f472b6');
+      check(g, 'blank currency -> default', settingsOf({ currency: '' }).currency, 'Rp');
+
+      g = group('restoring a backup file');
+      const PROBE = 'tokotally-test-probe';
+      const wipe = () =>
+        new Promise((done) => {
+          const r = indexedDB.deleteDatabase(PROBE);
+          r.onsuccess = r.onerror = r.onblocked = done;
+        });
+      await wipe();
+      const probe = await Database.open(PROBE);
+      const probeLog = (await probe.allLogs())[0].id;
+      await probe.insertTransaction(
+        probeLog, 240000, [{ qty: 3, price: 80, discount: '' }], '',
+        '2026-08-04 10:00:00'
+      );
+
+      // Refusals must leave the existing ledger untouched: importAll
+      // clears every store before writing, so a payload that turns out to
+      // be unusable must be rejected *before* it destroys anything.
+      const refused = async (payload) => {
+        try {
+          await probe.importAll(payload);
+          return false;
+        } catch {
+          return true;
+        }
+      };
+      const survivors = async () =>
+        (await probe.allTransactions((await probe.allLogs())[0].id)).length;
+
+      check(g, 'a foreign file is refused',
+        await refused({ format: 'nope' }), true);
+      check(g, 'an empty backup is refused',
+        await refused({ format: 'tokotally-backup' }), true);
+      check(g, 'a backup whose logs have no keys is refused',
+        await refused({ format: 'tokotally-backup', logs: [{ name: 'no id' }] }), true);
+      check(g, 'a backup whose fields are not arrays is refused',
+        await refused({ format: 'tokotally-backup', logs: 'nope' }), true);
+      check(g, 'the existing ledger survived every refusal', await survivors(), 1);
+
+      // A structurally valid backup carrying poison: the bad rows are
+      // dropped or coerced, the good ones land.
+      await probe.importAll({
+        format: 'tokotally-backup',
+        logs: [
+          { id: 1, name: 'Real' },
+          { id: 1, name: 'duplicate key' },
+          { id: 0, name: 'unusable key' },
+          { name: 'no key at all' },
+        ],
+        transactions: [
+          { id: 1, logId: 1, seqNo: 1, total: 'not a number',
+            createdAt: '2026-08-04 10:00:00', saleDate: '' },
+          { id: 2, logId: 999, seqNo: 2, total: 5000,
+            createdAt: '2026-08-04 10:01:00', saleDate: '' },
+          { id: 3, logId: 1, seqNo: 2, total: 7000,
+            createdAt: '2026-08-04 10:02:00', saleDate: '' },
+        ],
+        lineItems: [
+          { id: 1, transactionId: 1, qty: 'x', price: null, discount: 5 },
+          { id: 2, transactionId: 999, qty: 1, price: 1, discount: '' },
+        ],
+        settings: [{ key: 'decimals', value: 2 }, { key: '', value: 'x' }],
+      });
+      const restored = await probe.allLogs();
+      const rows = await probe.allTransactions(restored[0].id);
+      check(g, 'a duplicate/keyless log is dropped', restored.length, 1);
+      check(g, 'a sale belonging to no log is dropped', rows.length, 2);
+      check(g, 'a non-numeric total becomes 0, never NaN', rows[0].total, 0);
+      check(g, 'a good total is kept', rows[1].total, 7000);
+      check(g, 'the running total stays finite',
+        Number.isFinite(await probe.runningTotal(restored[0].id)), true);
+      check(g, 'a line belonging to no sale is dropped',
+        (await probe.getLineItems(2)).length, 0);
+
+      // parseBackup rebuilds each record field by field, so a dropped
+      // ppnRate would quietly untax every sale a backup restores.
+      await probe.importAll({
+        format: 'tokotally-backup',
+        logs: [{ id: 1, name: 'Taxed' }],
+        transactions: [
+          { id: 1, logId: 1, seqNo: 1, total: 1827060, ppnRate: 0.11,
+            createdAt: '2026-08-04 10:00:00', saleDate: '' },
+          { id: 2, logId: 1, seqNo: 2, total: 1646000,
+            createdAt: '2026-08-04 10:05:00', saleDate: '' },
+        ],
+        lineItems: [],
+        settings: [],
+      });
+      const back = await probe.allTransactions(1);
+      check(g, 'a backup keeps the PPN rate it was taxed at',
+        back[0].ppnRate, 0.11);
+      check(g, 'and its PPN-inclusive total', back[0].total, 1827060);
+      check(g, 'a sale with no rate restores as untaxed', back[1].ppnRate, 0);
+      await wipe();
+
+      document.getElementById('summary').replaceChildren(
+        element('b', fail ? 'fail' : 'pass', `${pass} passed, ${fail} failed`)
+      );
       window.__results = { pass, fail };
     </script>
   </body>

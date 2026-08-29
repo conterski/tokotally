@@ -8,8 +8,9 @@
  * from the phone to the PC.
  */
 
-import { confirmAction } from './common.js';
+import { confirmAction, el } from './common.js';
 
+// The same five the desktop drawer offers (SettingsDrawer.qml).
 const ACCENTS = ['#2dd4bf', '#f59e0b', '#60a5fa', '#a78bfa', '#f472b6'];
 
 export class SettingsDrawer {
@@ -31,6 +32,8 @@ export class SettingsDrawer {
     refs.discOff.addEventListener('click', () =>
       settings.setDiscountEnabled(false)
     );
+    refs.ppnOn.addEventListener('click', () => settings.setPpnEnabled(true));
+    refs.ppnOff.addEventListener('click', () => settings.setPpnEnabled(false));
     refs.flowRow.addEventListener('click', () => settings.setEntryFlow('row'));
     refs.flowColumn.addEventListener('click', () =>
       settings.setEntryFlow('column')
@@ -51,16 +54,18 @@ export class SettingsDrawer {
       this.close();
     });
 
-    for (const color of ACCENTS) {
-      const dot = document.createElement('button');
-      dot.type = 'button';
-      dot.className = 'swatch';
-      dot.style.background = color;
-      dot.setAttribute('aria-label', `Accent ${color}`);
-      dot.addEventListener('click', () => settings.setAccent(color));
-      dot.dataset.color = color;
-      refs.swatches.append(dot);
-    }
+    refs.swatches.replaceChildren(
+      ...ACCENTS.map((color) =>
+        el('button', {
+          class: 'swatch',
+          type: 'button',
+          style: `background: ${color}`,
+          'data-color': color,
+          'aria-label': `Accent ${color}`,
+          onclick: () => settings.setAccent(color),
+        })
+      )
+    );
 
     refs.exportBtn.addEventListener('click', () => this.exportBackup());
     refs.importBtn.addEventListener('click', () => refs.importFile.click());
@@ -90,6 +95,15 @@ export class SettingsDrawer {
     refs.themeLight.classList.toggle('btn--accent', !settings.darkMode);
     refs.discOn.classList.toggle('btn--accent', settings.discountEnabled);
     refs.discOff.classList.toggle('btn--accent', !settings.discountEnabled);
+    refs.ppnOn.classList.toggle('btn--accent', settings.ppnEnabled);
+    refs.ppnOff.classList.toggle('btn--accent', !settings.ppnEnabled);
+    // Both the heading and the note name the rate, so changing the
+    // constant relabels them without touching the markup.
+    refs.ppnSettingLabel.textContent = settings.ppnLabel;
+    refs.ppnNote.textContent =
+      `Adds ${settings.ppnLabel} to the sale, shown above the Grand Total. ` +
+      'Each sale keeps the rate it was charged at, so turning this off ' +
+      'later leaves sales already logged alone.';
     const column = settings.entryFlow === 'column';
     refs.flowRow.classList.toggle('btn--accent', !column);
     refs.flowColumn.classList.toggle('btn--accent', column);

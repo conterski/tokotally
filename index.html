@@ -116,6 +116,17 @@
         <div class="bottombar">
           <div class="grand">
             <div class="grand__text">
+              <!-- Only shown while the sale is taxed; see data-ppn. -->
+              <div class="breakdown" id="breakdown">
+                <div class="breakdown__row">
+                  <span>Subtotal</span>
+                  <span id="subtotalValue">0</span>
+                </div>
+                <div class="breakdown__row">
+                  <span id="ppnLabel">PPN</span>
+                  <span id="ppnValue">0</span>
+                </div>
+              </div>
               <div class="grand__label">Grand Total</div>
               <div class="grand__value" id="grandTotal">0</div>
             </div>
@@ -235,6 +246,14 @@
           </span>
         </div>
 
+        <div class="setting">
+          <span class="setting__label" id="ppnSettingLabel">PPN</span>
+          <div class="setting__control">
+            <button class="btn" id="ppnOn">On</button>
+            <button class="btn" id="ppnOff">Off</button>
+          </div>
+          <p class="setting__note" id="ppnNote"></p>
+        </div>
         <div class="setting">
           <span class="setting__label">Entry flow</span>
           <div class="setting__row">

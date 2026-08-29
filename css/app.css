@@ -651,6 +651,27 @@ button {
   min-width: 0;
 }
 
+/* Subtotal + PPN above the Grand Total. Hidden unless the sale is taxed,
+   the same way data-discounts hides the discount column. */
+.breakdown {
+  display: none;
+  margin-bottom: calc(4px * var(--scale));
+}
+
+.app[data-ppn='on'] .breakdown {
+  display: block;
+}
+
+.breakdown__row {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(12px * var(--scale));
+  font-size: calc(12px * var(--scale));
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
 .grand__label {
   color: var(--text-secondary);
   font-size: var(--font-sm);

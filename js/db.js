@@ -170,6 +170,8 @@ export class Database {
       total: Number(r.total),
       createdAt: String(r.createdAt),
       saleDate: String(r.saleDate || ''),
+      // Sales written before PPN existed have no rate: they were untaxed.
+      ppnRate: Number(r.ppnRate) || 0,
       itemCount: counts.get(r.id) || 0,
     }));
   }
@@ -209,17 +211,17 @@ export class Database {
    * the freshly created record so the caller can append it without
    * re-reading everything.
    */
-  async insertTransaction(logId, total, items, saleDate, createdAt) {
+  async insertTransaction(logId, total, items, saleDate, createdAt, ppnRate = 0) {
     const seqNo = await this._nextSeqNo(logId);
-    const stamp = createdAt;
     const tx = this._tx([STORES.transactions, STORES.lineItems], 'readwrite');
     const id = await req(
       tx.objectStore(STORES.transactions).add({
         logId,
         seqNo,
         total: Number(total),
-        createdAt: stamp,
+        createdAt,
         saleDate: String(saleDate || ''),
+        ppnRate: Number(ppnRate) || 0,
       })
     );
     this._putLineItems(tx, id, items || []);
@@ -229,8 +231,9 @@ export class Database {
       logId,
       seqNo,
       total: Number(total),
-      createdAt: stamp,
+      createdAt,
       saleDate: String(saleDate || ''),
+      ppnRate: Number(ppnRate) || 0,
       itemCount: (items || []).length,
     };
   }
@@ -250,6 +253,7 @@ export class Database {
       total: Number(record.total),
       createdAt: String(record.createdAt),
       saleDate: String(record.saleDate || ''),
+      ppnRate: Number(record.ppnRate) || 0,
     });
     this._putLineItems(tx, record.id, items);
     await done(tx);
@@ -307,6 +311,7 @@ export class Database {
       if (fields.seqNo !== undefined) rec.seqNo = Number(fields.seqNo);
       if (fields.createdAt !== undefined) rec.createdAt = String(fields.createdAt);
       if (fields.saleDate !== undefined) rec.saleDate = String(fields.saleDate);
+      if (fields.ppnRate !== undefined) rec.ppnRate = Number(fields.ppnRate) || 0;
       store.put(rec);
     }
     await done(tx);
@@ -411,11 +416,24 @@ export class Database {
    * Destructive by design (it is a restore, not a merge), so the caller
    * confirms first. Keys are preserved so the transaction/line-item
    * relationships survive the round trip.
+   *
+   * The payload is a file from outside the app — possibly hand-edited,
+   * truncated by a failed download, or written by a different version —
+   * so it is parsed into the shapes the stores expect *before* anything
+   * is written, and the whole import is refused if nothing usable comes
+   * out. Both matter: the write clears every store first, so a payload
+   * that turns out to be unusable halfway through would otherwise have
+   * already destroyed the ledger it was meant to replace.
    */
   async importAll(data) {
     if (!data || data.format !== 'tokotally-backup') {
       throw new Error('Not a TokoTally backup file');
     }
+    const payload = parseBackup(data);
+    if (payload.logs.length === 0) {
+      throw new Error('That backup has no logs in it — nothing was changed');
+    }
+
     const names = [
       STORES.logs,
       STORES.transactions,
@@ -424,13 +442,99 @@ export class Database {
     ];
     const tx = this._tx(names, 'readwrite');
     for (const n of names) tx.objectStore(n).clear();
-    for (const r of data.logs || []) tx.objectStore(STORES.logs).put(r);
-    for (const r of data.transactions || []) {
+    for (const r of payload.logs) tx.objectStore(STORES.logs).put(r);
+    for (const r of payload.transactions) {
       tx.objectStore(STORES.transactions).put(r);
     }
-    for (const r of data.lineItems || []) tx.objectStore(STORES.lineItems).put(r);
-    for (const r of data.settings || []) tx.objectStore(STORES.settings).put(r);
+    for (const r of payload.lineItems) tx.objectStore(STORES.lineItems).put(r);
+    for (const r of payload.settings) tx.objectStore(STORES.settings).put(r);
     await done(tx);
-    await this._ensureDefaultLog();
   }
+}
+
+// ----- backup parsing ---------------------------------------------------
+// Every field below is coerced rather than trusted. A record that cannot
+// be given a usable key is dropped instead of thrown on, because one bad
+// row in a long ledger should not cost the user the whole restore.
+
+const asArray = (v) => (Array.isArray(v) ? v : []);
+
+/** A positive integer key, or null when the record cannot be stored. */
+function keyOf(record) {
+  const id = record && record.id;
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** A finite number, so no NaN total can reach the ledger's arithmetic. */
+function finite(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Turn a backup payload into the four record sets, dropping anything
+ * unusable: rows without a key, and rows orphaned from their parent
+ * (a transaction whose log is missing, a line whose sale is missing).
+ * An orphan would be invisible in every log yet still occupy storage.
+ */
+function parseBackup(data) {
+  const logs = [];
+  const seenLogs = new Set();
+  for (const r of asArray(data.logs)) {
+    const id = keyOf(r);
+    if (id === null || seenLogs.has(id)) continue;
+    seenLogs.add(id);
+    logs.push({
+      id,
+      name: String(r.name ?? '').trim() || `Log ${id}`,
+      created_at: String(r.created_at ?? ''),
+    });
+  }
+
+  const transactions = [];
+  const seenTxns = new Set();
+  for (const r of asArray(data.transactions)) {
+    const id = keyOf(r);
+    if (id === null || seenTxns.has(id)) continue;
+    if (!seenLogs.has(r.logId)) continue; // belongs to no restored log
+    seenTxns.add(id);
+    transactions.push({
+      id,
+      logId: r.logId,
+      seqNo: Math.max(0, Math.trunc(finite(r.seqNo))),
+      total: finite(r.total),
+      createdAt: String(r.createdAt ?? ''),
+      saleDate: String(r.saleDate ?? ''),
+      ppnRate: finite(r.ppnRate),
+    });
+  }
+
+  const lineItems = [];
+  const seenLines = new Set();
+  for (const r of asArray(data.lineItems)) {
+    const id = keyOf(r);
+    if (id === null || seenLines.has(id)) continue;
+    if (!seenTxns.has(r.transactionId)) continue; // belongs to no sale
+    seenLines.add(id);
+    lineItems.push({
+      id,
+      transactionId: r.transactionId,
+      qty: finite(r.qty),
+      price: finite(r.price),
+      discount: String(r.discount ?? ''),
+    });
+  }
+
+  // Settings are keyed by name and read back through their own coercion
+  // (see SettingsStore), so only the shape is enforced here.
+  const settings = [];
+  const seenKeys = new Set();
+  for (const r of asArray(data.settings)) {
+    const key = String(r && r.key ? r.key : '');
+    if (!key || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    settings.push({ key, value: String(r.value ?? '') });
+  }
+
+  return { logs, transactions, lineItems, settings };
 }

@@ -155,6 +155,34 @@ terms mix freely (`10+-5` is 10% off then 5% on).
 Malformed fragments are skipped rather than rejected, so a chain stays
 inert while it is half-typed: `-`, `--` and `5-3` all price as 1.0.
 
+Discount is off the Enter path — Tab or the arrows reach it — and `Enter`
+there walks straight down the Discount column. The exception is the last
+line in **Row (Z)** flow, where there is nothing below: Enter takes the
+same step it takes on a price, starting the next line and landing in its
+Qty (and only once the line is real, so a blank one never piles up rows).
+**Column (N)** flow keeps walking the column to the end. Discount never
+completes the sale in either flow; that is only ever the empty trailing
+Price.
+
+## PPN
+
+Settings → **PPN** adds Indonesian VAT to the sale. With it on the bottom
+bar breaks the figure down — Subtotal, PPN 11%, then a Grand Total that
+*includes* the tax — and the logged sale carries the inclusive total. The
+tax applies to what the customer actually pays, so it lands on the line
+totals *after* any discount chain.
+
+Each sale stores the **rate it was charged at**, not a yes/no flag. Two
+things follow. Turning the toggle off later leaves sales already logged
+exactly as they are, and re-opening one to edit it re-derives the same
+tax rather than today's — a sale keeps its own history. And if the rate
+itself ever changes, old sales keep the 11% they were charged; only
+`PPN_RATE` in `js/core.js` (and `backend/money.py`) moves.
+
+While you are editing a logged sale the breakdown follows *that sale's*
+rate, not the setting: a taxed sale still shows its PPN with the toggle
+off, and an untaxed one shows none with it on.
+
 ## Storage
 
 Everything lives in IndexedDB in the browser, which means **per-device,
@@ -165,13 +193,23 @@ Settings → **Export** writes a JSON backup; **Import** replaces
 everything in that browser with a backup's contents. That is how a
 ledger moves between devices.
 
+Import treats the file as untrusted — it is hand-editable, and a
+truncated download looks just like a real one. The payload is parsed into
+the shapes the stores expect before anything is written: rows that carry
+no usable key, or that belong to a log or sale the file doesn't contain,
+are dropped, and a total that isn't a number reads as 0 rather than
+poisoning the ledger's arithmetic with NaN. If nothing usable comes out,
+the import is refused and the existing ledger is left alone — the write
+clears every store first, so a payload that failed halfway would
+otherwise have already destroyed what it was meant to replace.
+
 ## Layout of the code
 
 ```
 index.html            markup + the SVG icon sprite
 css/theme.css         design tokens (port of qml/Theme.qml)
 css/app.css           layout and components, both breakpoints
-js/core.js            money/date rules (port of backend/{constants,discounts,dates}.py)
+js/core.js            money/date rules (port of backend/{constants,discounts,money,dates}.py)
 js/db.js              IndexedDB layer (port of backend/database.py)
 js/store.js           view-models (port of backend/*_viewmodel.py, settings.py)
 js/ui/common.js       toast, popup menus, modal dialogs

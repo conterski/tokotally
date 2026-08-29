@@ -27,6 +27,11 @@ export function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+/** "1 sale" / "2 sales" — the count and its noun, agreeing. */
+export function plural(n, noun, plural = `${noun}s`) {
+  return `${n} ${n === 1 ? noun : plural}`;
+}
+
 /** An <svg><use> reference to one of the sprite symbols in index.html. */
 export function icon(id, cls) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

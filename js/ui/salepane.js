@@ -13,7 +13,11 @@ import { el, icon } from './common.js';
 import { tweenNumber } from './tween.js';
 
 // Column indices, matching the desktop's requestFocusAt contract.
-const COL = { QTY: 0, PRICE: 1, DISC: 2 };
+export const COL = { QTY: 0, PRICE: 1, DISC: 2 };
+
+// The data-area each column's input carries, so a column index and the
+// markup it addresses are declared together in one place.
+const AREA = { [COL.QTY]: 'qty', [COL.PRICE]: 'price', [COL.DISC]: 'disc' };
 
 // Ported from EditField.qml's validators. QML anchors a
 // RegularExpressionValidator implicitly; here the anchors are explicit.
@@ -65,6 +69,13 @@ export class SalePane {
     this.totalTween = tweenNumber((v) => {
       this.refs.grandTotal.textContent = this.settings.money(v);
       this.refs.tabSaleTotal.textContent = this.settings.money(v);
+    });
+    // The breakdown eases with the figure it explains.
+    this.subtotalTween = tweenNumber((v) => {
+      this.refs.subtotalValue.textContent = this.settings.money(v);
+    });
+    this.ppnTween = tweenNumber((v) => {
+      this.refs.ppnValue.textContent = this.settings.money(v);
     });
   }
 
@@ -239,11 +250,12 @@ export class SalePane {
       const m = text.match(/^(.*?)[*xX](.*)$/);
       if (m) {
         // "3*80" shorthand: split into qty + price and mirror the price
-        // into its own field.
+        // into its own field. An empty qty part means 1, as the pre-fill does.
         const q = m[1].trim() === '' ? 1 : parseField(m[1]);
+        const p = parseField(m[2]);
         this.sale.setQty(index, q);
-        this.sale.setPrice(index, parseField(m[2]));
-        setValue(price, parseField(m[2]) !== 0 ? String(parseField(m[2])) : '');
+        this.sale.setPrice(index, p);
+        setValue(price, p !== 0 ? String(p) : '');
       } else {
         this.sale.setQty(index, parseField(text));
       }
@@ -328,6 +340,19 @@ export class SalePane {
       row._parts.syncQtyTone();
     });
     this.totalTween.set(this.sale.grandTotal);
+
+    // Shown for a *taxed sale*, not for the setting: while editing, the
+    // rate in force is the one that sale was logged with, so a taxed sale
+    // keeps its breakdown after the toggle goes off — and an untaxed one
+    // shows none while it is on. Drawing is skipped when hidden, which
+    // keeps an untaxed sale's keystroke path as short as it was.
+    const taxed = this.sale.ppnRate > 0;
+    this.refs.app.dataset.ppn = taxed ? 'on' : 'off';
+    if (taxed) {
+      this.refs.ppnLabel.textContent = this.settings.ppnLabel;
+      this.subtotalTween.set(this.sale.subtotal);
+      this.ppnTween.set(this.sale.ppnAmount);
+    }
   }
 
   /** Re-read everything after a settings change (decimals, discounts). */
@@ -338,113 +363,135 @@ export class SalePane {
 
   // ----- keyboard -----------------------------------------------------
 
+  /** Route a keystroke in a line field; each group has its own handler. */
   onFieldKey(e, ctx) {
+    if (e.key === 'Enter') this.handleEnter(e, ctx);
+    else if (e.key === 'Tab' && !e.shiftKey) this.handleTab(e, ctx);
+    else this.handleArrows(e, ctx);
+  }
+
+  handleEnter(e, ctx) {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      this.sale.completeSale(); // handled globally too; harmless twice
+      return;
+    }
+    // Backward through the same chain Enter walks forward, which differs
+    // per flow: column entry retreats up its own column.
+    if (e.shiftKey) this.enterBackward(ctx);
+    else if (this.settings.entryFlow === 'column') this.enterColumnFlow(ctx);
+    else this.enterRowFlow(ctx);
+  }
+
+  /**
+   * Enter in row ("Z") flow: Qty -> Price -> down to the next line, with
+   * the last line's empty Price completing the sale.
+   */
+  enterRowFlow(ctx) {
     const { index, col, isLast, item, qty, price } = ctx;
-    const field = e.currentTarget;
-    const key = e.key;
 
-    if (key === 'Enter') {
+    if (col === COL.QTY) {
+      this.confirmed.add(item);
+      if (/[*xX]/.test(qty.value)) {
+        // The shorthand line is complete: tidy Qty back to just the
+        // number and jump to the next line.
+        setValue(qty, String(qty.value).split(/[*xX]/)[0].trim());
+        this.advance(index);
+      } else {
+        this.focusCell(index, COL.PRICE);
+      }
+      return;
+    }
+
+    if (col === COL.PRICE) {
+      // Enter on the blank trailing line completes the sale.
+      if (isLast && price.value.length === 0) this.sale.completeSale();
+      else this.advance(index);
+      return;
+    }
+
+    // Discount walks down its own column. On the last line there is
+    // nothing below it, and in row flow that is where the next line
+    // starts — so it takes the same step Enter on a price takes, which
+    // appends the line only once this one is real and moves to its Qty.
+    // Either way Discount never completes the sale: that is only ever the
+    // empty trailing Price.
+    if (isLast) this.advance(index);
+    else this.focusCell(index + 1, COL.DISC);
+  }
+
+  /** Shift+Enter: one step back along whichever flow is active. */
+  enterBackward({ index, col }) {
+    if (this.settings.entryFlow === 'column') {
+      this.focusCell(index - 1, col);
+      return;
+    }
+    if (col === COL.QTY) this.focusCell(index - 1, COL.PRICE);
+    else if (col === COL.PRICE) this.focusCell(index, COL.QTY);
+    else this.focusCell(index, COL.PRICE);
+  }
+
+  /**
+   * Tab switches sides: with discounts on it jumps to this line's
+   * Discount, and from Discount back to Qty.
+   */
+  handleTab(e, { index, col }) {
+    const discOn = this.settings.discountEnabled;
+    if (col === COL.QTY) {
       e.preventDefault();
-      if (e.ctrlKey || e.metaKey) {
-        this.sale.completeSale(); // handled globally too; harmless twice
-        return;
-      }
-      if (e.shiftKey) {
-        // Backward through the same chain Enter walks forward, which
-        // differs per flow: column entry retreats up its own column.
-        if (this.settings.entryFlow === 'column') {
-          this.focusCell(index - 1, col);
-          return;
-        }
-        if (col === COL.QTY) this.focusCell(index - 1, COL.PRICE);
-        else if (col === COL.PRICE) this.focusCell(index, COL.QTY);
-        else this.focusCell(index, COL.PRICE);
-        return;
-      }
-      if (this.settings.entryFlow === 'column') {
-        this.enterColumnFlow(ctx);
-        return;
-      }
-      if (col === COL.QTY) {
-        this.confirmed.add(item);
-        if (/[*xX]/.test(qty.value)) {
-          // The shorthand line is complete: tidy Qty back to just the
-          // number and jump to the next line.
-          setValue(qty, String(qty.value).split(/[*xX]/)[0].trim());
-          this.advance(index);
-        } else {
-          this.focusCell(index, COL.PRICE);
-        }
-        return;
-      }
-      if (col === COL.PRICE) {
-        // Enter on the blank trailing line completes the sale.
-        if (isLast && price.value.length === 0) this.sale.completeSale();
-        else this.advance(index);
-        return;
-      }
-      // Discount walks straight down its own column; it never completes.
-      this.focusCell(index + 1, COL.DISC);
-      return;
+      this.focusCell(index, discOn ? COL.DISC : COL.PRICE);
+    } else if (col === COL.PRICE && discOn) {
+      e.preventDefault();
+      this.focusCell(index, COL.DISC);
+    } else if (col === COL.DISC) {
+      e.preventDefault();
+      this.focusCell(index, COL.QTY);
     }
+  }
 
-    if (key === 'Tab' && !e.shiftKey) {
-      // Tab switches sides: with discounts on it jumps to this line's
-      // Discount, and from Discount back to Qty.
-      const discOn = this.settings.discountEnabled;
-      if (col === COL.QTY) {
-        e.preventDefault();
-        this.focusCell(index, discOn ? COL.DISC : COL.PRICE);
-      } else if (col === COL.PRICE && discOn) {
-        e.preventDefault();
-        this.focusCell(index, COL.DISC);
-      } else if (col === COL.DISC) {
-        e.preventDefault();
-        this.focusCell(index, COL.QTY);
-      }
-      return;
-    }
+  /** Up/Down move between rows; Left/Right cross fields at a text edge. */
+  handleArrows(e, { index, col }) {
+    const field = e.currentTarget;
 
-    if (key === 'ArrowUp') {
+    if (e.key === 'ArrowUp') {
       e.preventDefault();
       this.focusCell(index - 1, col);
       return;
     }
-    if (key === 'ArrowDown') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
       this.focusCell(index + 1, col);
       return;
     }
 
-    const atStart = field.selectionStart === 0 && collapsed(field);
-    const atEnd = field.selectionStart === field.value.length && collapsed(field);
+    // Only from the edge of the text, so a caret mid-number still walks
+    // through the digits the way it would in any other input. A selection
+    // is not an edge, hence the -1.
+    const caret = collapsed(field) ? field.selectionStart : -1;
+    let step = 0;
+    if (e.key === 'ArrowLeft' && caret === 0) step = -1;
+    else if (e.key === 'ArrowRight' && caret === field.value.length) step = 1;
+    else return;
 
-    if (key === 'ArrowLeft' && atStart) {
-      e.preventDefault();
-      if (col === COL.QTY) {
-        // Off the left edge -> the previous line's rightmost column.
-        this.focusCell(
-          index - 1,
-          this.settings.discountEnabled ? COL.DISC : COL.PRICE
-        );
-      } else if (col === COL.PRICE) {
-        this.focusCell(index, COL.QTY);
-      } else {
-        this.focusCell(index, COL.PRICE);
-      }
-      return;
-    }
-    if (key === 'ArrowRight' && atEnd) {
-      e.preventDefault();
-      if (col === COL.QTY) {
-        this.focusCell(index, COL.PRICE);
-      } else if (col === COL.PRICE) {
-        if (this.settings.discountEnabled) this.focusCell(index, COL.DISC);
-        else this.focusCell(index + 1, COL.QTY);
-      } else {
-        this.focusCell(index + 1, COL.QTY);
-      }
-    }
+    e.preventDefault();
+    this.focusCell(...this.neighbourCell(index, col, step));
+  }
+
+  /**
+   * The cell one column left (-1) or right (+1) of (row, col).
+   *
+   * The columns form a ring — Qty, Price, and Discount when it is on —
+   * and stepping off either end lands on the neighbouring row, so the
+   * arrows walk the whole grid without any per-column special cases.
+   */
+  neighbourCell(row, col, step) {
+    const ring = this.settings.discountEnabled
+      ? [COL.QTY, COL.PRICE, COL.DISC]
+      : [COL.QTY, COL.PRICE];
+    const at = ring.indexOf(col) + step;
+    if (at < 0) return [row - 1, ring[ring.length - 1]];
+    if (at >= ring.length) return [row + 1, ring[0]];
+    return [row, ring[at]];
   }
 
   /**
@@ -510,8 +557,7 @@ export class SalePane {
   focusCell(row, col) {
     const node = this.refs.itemRows.children[row];
     if (!node) return;
-    const area = col === COL.QTY ? 'qty' : col === COL.PRICE ? 'price' : 'disc';
-    const field = node.querySelector(`[data-area='${area}']`);
+    const field = node.querySelector(`[data-area='${AREA[col]}']`);
     // A hidden Discount column (the setting is off) is not focusable.
     if (!field || field.offsetParent === null) return;
     // preventScroll matters: left to itself the browser scrolls the

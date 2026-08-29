@@ -301,5 +301,158 @@
    "discount": "10+-5",
    "expected": 226800.00000000003
   }
+ ],
+ "ppnRate": 0.11,
+ "saleTotal": [
+  {
+   "items": [],
+   "rate": 0.0,
+   "expected": 0.0
+  },
+  {
+   "items": [],
+   "rate": 0.11,
+   "expected": 0.0
+  },
+  {
+   "items": [
+    {
+     "qty": 1,
+     "price": 1646,
+     "discount": ""
+    }
+   ],
+   "rate": 0.0,
+   "expected": 1646000.0
+  },
+  {
+   "items": [
+    {
+     "qty": 1,
+     "price": 1646,
+     "discount": ""
+    }
+   ],
+   "rate": 0.11,
+   "expected": 1827060.0
+  },
+  {
+   "items": [
+    {
+     "qty": 1,
+     "price": 80,
+     "discount": ""
+    },
+    {
+     "qty": 3,
+     "price": 80,
+     "discount": ""
+    }
+   ],
+   "rate": 0.0,
+   "expected": 320000.0
+  },
+  {
+   "items": [
+    {
+     "qty": 1,
+     "price": 80,
+     "discount": ""
+    },
+    {
+     "qty": 3,
+     "price": 80,
+     "discount": ""
+    }
+   ],
+   "rate": 0.11,
+   "expected": 355200.0
+  },
+  {
+   "items": [
+    {
+     "qty": 2,
+     "price": 50,
+     "discount": "10+5"
+    }
+   ],
+   "rate": 0.0,
+   "expected": 85500.0
+  },
+  {
+   "items": [
+    {
+     "qty": 2,
+     "price": 50,
+     "discount": "10+5"
+    }
+   ],
+   "rate": 0.11,
+   "expected": 94905.0
+  },
+  {
+   "items": [
+    {
+     "qty": 1,
+     "price": 100,
+     "discount": "-10"
+    }
+   ],
+   "rate": 0.0,
+   "expected": 110000.00000000001
+  },
+  {
+   "items": [
+    {
+     "qty": 1,
+     "price": 100,
+     "discount": "-10"
+    }
+   ],
+   "rate": 0.11,
+   "expected": 122100.00000000001
+  },
+  {
+   "items": [
+    {
+     "qty": 2,
+     "price": 50,
+     "discount": ""
+    },
+    {
+     "qty": 1,
+     "price": 12.5,
+     "discount": ""
+    },
+    {
+     "qty": -1,
+     "price": 20,
+     "discount": ""
+    }
+   ],
+   "rate": 0.0,
+   "expected": 92500.0
+  },
+  {
+   "items": [
+    {
+     "qty": 2,
+     "price": 50,
+     "discount": ""
+    },
+    {
+     "qty": 1,
+     "price": 12.5,
+     "discount": ""
+    },
+    {
+     "qty": -1,
+     "price": 20,
+     "discount": ""
+    }
+   ],
+   "rate": 0.11,
+   "expected": 102675.0
+  }
  ]
 }

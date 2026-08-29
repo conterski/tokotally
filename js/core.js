@@ -46,6 +46,41 @@ export function lineTotal(item) {
   );
 }
 
+// Indonesian VAT. Kept as a rate rather than a boolean everywhere it is
+// stored, so a sale logged at 11% keeps 11% even if this constant later
+// changes — the rate a sale was charged at is history, not a setting.
+// Mirrors PPN_RATE in backend/money.py.
+export const PPN_RATE = 0.11;
+
+/** Sum of the line totals, before any tax. */
+export function subtotal(items) {
+  return items.reduce((sum, item) => sum + lineTotal(item), 0);
+}
+
+/** The tax on a subtotal at `rate` (0 when the sale is untaxed). */
+export function ppnAmount(sub, rate) {
+  return sub * Number(rate || 0);
+}
+
+/**
+ * What the sale is worth: its lines plus their PPN.
+ *
+ * `rate` is the sale's own rate — the setting's while it is being
+ * composed, the stored one once it is logged — so re-deriving an old
+ * sale's total cannot quietly re-tax it at today's setting.
+ */
+export function saleTotal(items, rate = 0) {
+  const sub = subtotal(items);
+  return sub + ppnAmount(sub, rate);
+}
+
+/** How the rate is written wherever it is shown: "PPN 11%". */
+export function ppnLabel(rate = PPN_RATE) {
+  // 0.11 * 100 is 11.000000000000002 in binary floating point.
+  const percent = String(Number((rate * 100).toFixed(2)));
+  return `PPN ${percent}%`;
+}
+
 // Accepted date inputs, tried in order — the same set backend/dates.py
 // hands to strptime. The ISO form requires a 4-digit year so a string
 // like "24-01-02" reads as dd-mm-yy rather than the year 24.

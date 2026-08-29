@@ -23,6 +23,8 @@ sys.path.insert(0, DESKTOP)
 from backend.constants import PRICE_MULTIPLIER          # noqa: E402
 from backend.dates import format_date_display, parse_user_date  # noqa: E402
 from backend.discounts import discount_factor           # noqa: E402
+from backend.money import PPN_RATE, line_total, sale_total  # noqa: E402
+from backend.money import PPN_RATE, sale_total          # noqa: E402
 
 DISCOUNTS = [
     "", "0", "10", "10+5", "10+5+3", "50+50", "100", "12,5", "12.5",
@@ -51,6 +53,17 @@ LINES = [
     (1, 100, "-10"), (2, 50, "-10+5"), (3, 80, "10+-5"),
 ]
 
+# (lines, ppn rate) -> what the sale is worth. Each set of lines is run at
+# both rates, so the tax step is pinned as well as its absence.
+SALES = [
+    [],
+    [(1, 1646, "")],
+    [(1, 80, ""), (3, 80, "")],
+    [(2, 50, "10+5")],                       # taxed after discounting
+    [(1, 100, "-10")],                        # ...and after a surcharge
+    [(2, 50, ""), (1, 12.5, ""), (-1, 20, "")],   # includes a return
+]
+
 
 def main() -> int:
     fixture = {
@@ -69,9 +82,24 @@ def main() -> int:
                 "qty": q,
                 "price": p,
                 "discount": d,
-                "expected": q * p * PRICE_MULTIPLIER * discount_factor(d),
+                "expected": line_total({"qty": q, "price": p, "discount": d}),
             }
             for q, p, d in LINES
+        ],
+        "ppnRate": PPN_RATE,
+        "saleTotal": [
+            {
+                "items": [
+                    {"qty": q, "price": p, "discount": d} for q, p, d in lines
+                ],
+                "rate": rate,
+                "expected": sale_total(
+                    [{"qty": q, "price": p, "discount": d} for q, p, d in lines],
+                    rate,
+                ),
+            }
+            for lines in SALES
+            for rate in (0.0, PPN_RATE)
         ],
     }
 

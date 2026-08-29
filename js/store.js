@@ -18,8 +18,7 @@
 
 import {
   DEFAULT_QTY,
-  PRICE_MULTIPLIER,
-  discountFactor,
+  PPN_RATE,
   effectiveDate,
   formatDateDisplay,
   formatMoney,
@@ -27,6 +26,10 @@ import {
   lineTotal,
   nowStamp,
   parseUserDate,
+  ppnAmount,
+  ppnLabel,
+  saleTotal,
+  subtotal,
   todayIso,
 } from './core.js';
 
@@ -51,17 +54,63 @@ class Emitter {
 // =====================================================================
 // Settings
 // =====================================================================
+
+// Decimal places the UI offers; also the bounds anything read back from
+// storage is held to. Mirrors MIN/MAX_DECIMALS in backend/settings.py.
+const MIN_DECIMALS = 0;
+const MAX_DECIMALS = 6;
+const DEFAULT_ACCENT = '#2dd4bf'; // calm teal
+
+// #rgb, #rrggbb or #aarrggbb — the colour shapes both builds accept.
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+/**
+ * Coerce anything to a usable decimal count.
+ *
+ * A stored preference can arrive from an imported backup, so it is not
+ * trusted to be a number. Intl.NumberFormat throws a RangeError on NaN
+ * or an out-of-range digit count, which would break every money readout
+ * on the page — and since the value is persisted, it would stay broken
+ * across reloads with no way back through the UI.
+ */
+function clampDecimals(value, fallback = 3) {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(MIN_DECIMALS, Math.min(MAX_DECIMALS, n));
+}
+
+/** A hex colour the --accent variable can resolve, or the default. */
+function validAccent(value, fallback = DEFAULT_ACCENT) {
+  const text = String(value ?? '').trim();
+  return HEX_COLOR.test(text) ? text : fallback;
+}
+
 export class SettingsStore extends Emitter {
   constructor(db, values) {
     super();
     this._db = db;
+    this._adopt(values);
+  }
+
+  /**
+   * Take every preference from a raw settings map, defaults applied.
+   *
+   * Both construction and reload() go through here, so a preference
+   * added above cannot be forgotten by one of the two paths.
+   */
+  _adopt(values) {
     // Defaults match the desktop brief: 3 decimals, Rupiah, calm teal,
-    // dark first, per-line discounts off until opted into.
-    this.decimals = parseInt(values.decimals ?? '3', 10);
-    this.currency = values.currency ?? 'Rp';
-    this.accent = values.accent ?? '#2dd4bf';
+    // dark first, per-line discounts off until opted into. Each value is
+    // coerced rather than taken as read — see clampDecimals.
+    this.decimals = clampDecimals(values.decimals);
+    this.currency = String(values.currency || 'Rp');
+    this.accent = validAccent(values.accent);
     this.darkMode = (values.dark_mode ?? '1') === '1';
     this.discountEnabled = (values.discount_enabled ?? '0') === '1';
+    // Charge PPN on the sale being composed. Off by default, for the same
+    // reason. Only the *setting* is a switch: what each sale was actually
+    // charged is stored with it as a rate (see core.js).
+    this.ppnEnabled = (values.ppn_enabled ?? '0') === '1';
     // How Enter walks the grid. 'row' is the desktop app's zig-zag —
     // Qty, Price, down to the next line. 'column' fills the whole Qty
     // column first, then the whole Price column.
@@ -72,13 +121,19 @@ export class SettingsStore extends Emitter {
     return new SettingsStore(db, await db.allSettings());
   }
 
+  /** Re-read every preference from storage (after a backup restore). */
+  async reload() {
+    this._adopt(await this._db.allSettings());
+    this.emit('changed');
+  }
+
   async _write(key, value) {
     await this._db.setSetting(key, value);
     this.emit('changed');
   }
 
   setDecimals(v) {
-    const next = Math.max(0, Math.min(6, Number(v) | 0));
+    const next = clampDecimals(v, this.decimals);
     if (next === this.decimals) return;
     this.decimals = next;
     this._write('decimals', String(next));
@@ -92,9 +147,10 @@ export class SettingsStore extends Emitter {
   }
 
   setAccent(v) {
-    if (v === this.accent) return;
-    this.accent = v;
-    this._write('accent', v);
+    const next = validAccent(v, this.accent);
+    if (next === this.accent) return;
+    this.accent = next;
+    this._write('accent', next);
   }
 
   setDarkMode(v) {
@@ -109,6 +165,26 @@ export class SettingsStore extends Emitter {
     if (next === this.discountEnabled) return;
     this.discountEnabled = next;
     this._write('discount_enabled', next ? '1' : '0');
+  }
+
+  setPpnEnabled(v) {
+    const next = Boolean(v);
+    if (next === this.ppnEnabled) return;
+    this.ppnEnabled = next;
+    this._write('ppn_enabled', next ? '1' : '0');
+  }
+
+  /**
+   * The rate a sale composed right now would be charged at: the constant
+   * when the toggle is on, 0 when off.
+   */
+  get ppnRate() {
+    return this.ppnEnabled ? PPN_RATE : 0;
+  }
+
+  /** "PPN 11%" — derived from the rate, so the constant relabels the UI. */
+  get ppnLabel() {
+    return ppnLabel();
   }
 
   setEntryFlow(v) {
@@ -275,14 +351,20 @@ export class LedgerStore extends Emitter {
     this.emit('kpis');
   }
 
-  /** Persist a completed sale (with its line items) and update the KPIs. */
-  async logSale(total, items, saleDate) {
+  /**
+   * Persist a completed sale (with its line items) and update the KPIs.
+   *
+   * `total` already includes PPN at `ppnRate`, which is stored with the
+   * sale so a later edit re-derives the same tax.
+   */
+  async logSale(total, items, saleDate, ppnRate = 0) {
     const record = await this._db.insertTransaction(
       this.currentLogId,
       total,
       items,
       saleDate,
-      nowStamp()
+      nowStamp(),
+      ppnRate
     );
     this.rows.push(record); // newest at the bottom
     this.emit('structure', { appended: record.id });
@@ -307,6 +389,7 @@ export class LedgerStore extends Emitter {
       seqNo: rec.seqNo,
       createdAt: rec.createdAt,
       saleDate: rec.saleDate || '',
+      ppnRate: rec.ppnRate || 0,
       items: await this._db.getLineItems(rec.id),
     };
   }
@@ -322,10 +405,14 @@ export class LedgerStore extends Emitter {
   /**
    * Edit a logged sale: line items plus No. and the optional date.
    *
-   * The total is *derived* from the lines with the same x1000 rule as a
-   * live sale, so it always agrees with the breakdown. A non-positive
-   * total is rejected (delete is how you remove a sale), as is an
-   * unparseable date.
+   * The total is *derived* from the lines through the same saleTotal()
+   * a live sale uses, so it always agrees with the breakdown. A
+   * non-positive total is rejected (delete is how you remove a sale), as
+   * is an unparseable date.
+   *
+   * The PPN comes from the rate stored *with this sale*, not from the
+   * current setting: a sale keeps the tax it was charged, so turning PPN
+   * off later cannot quietly take 11% off an old total.
    */
   async updateSaleLines(row, seqNo, createdAt, saleDateText, items) {
     if (!(row >= 0 && row < this.rows.length)) return;
@@ -338,13 +425,9 @@ export class LedgerStore extends Emitter {
         price: Number(it.price),
         discount: String(it.discount || ''),
       }));
-    const total = clean.reduce(
-      (s, i) =>
-        s + i.qty * i.price * PRICE_MULTIPLIER * discountFactor(i.discount),
-      0
-    );
-    if (total <= 0) return;
     const record = this.rows[row];
+    const total = saleTotal(clean, record.ppnRate || 0);
+    if (total <= 0) return;
     await this._db.replaceLineItems(record.id, clean);
     await this._db.updateTransaction(record.id, {
       total,
@@ -403,9 +486,13 @@ export class LedgerStore extends Emitter {
 // Active sale
 // =====================================================================
 export class SaleStore extends Emitter {
-  constructor(ledger) {
+  constructor(ledger, settings) {
     super();
     this._ledger = ledger;
+    this._settings = settings; // read for the live PPN rate
+    // Toggling PPN changes what the sale is worth, so the totals have to
+    // be redrawn when it does.
+    settings.on('changed', () => this.emit('values', {}));
     // Start with one blank row to type into.
     this.items = [blankRow()];
     // Kept across sales so a batch back-logged for one day is typed once.
@@ -415,6 +502,9 @@ export class SaleStore extends Emitter {
     this.editingId = null;
     this.editSeqNo = 0;
     this._editCreatedAt = '';
+    // PPN rate of the sale being edited. null while composing, when the
+    // live setting applies instead (see the ppnRate getter).
+    this._editPpnRate = null;
     this._composeStash = null;
   }
 
@@ -426,8 +516,30 @@ export class SaleStore extends Emitter {
     return this.editingId === null ? -1 : this.editingId;
   }
 
+  /**
+   * The PPN rate this sale is charged at.
+   *
+   * While editing a logged sale it is that sale's own stored rate, so an
+   * old sale keeps its tax (and an old untaxed sale stays untaxed)
+   * whatever the toggle says now. While composing it is the setting.
+   */
+  get ppnRate() {
+    return this._editPpnRate !== null ? this._editPpnRate : this._settings.ppnRate;
+  }
+
+  /** The lines before tax — the top row of the bottom-bar breakdown. */
+  get subtotal() {
+    return subtotal(this.items);
+  }
+
+  /** The tax itself, for the breakdown's middle row. */
+  get ppnAmount() {
+    return ppnAmount(this.subtotal, this.ppnRate);
+  }
+
+  /** What the sale is worth: its lines plus PPN. */
   get grandTotal() {
-    return this.items.reduce((s, i) => s + lineTotal(i), 0);
+    return saleTotal(this.items, this.ppnRate);
   }
 
   get saleDateValid() {
@@ -559,6 +671,7 @@ export class SaleStore extends Emitter {
     this.editingId = Number(snap.id);
     this.editSeqNo = Number(snap.seqNo);
     this._editCreatedAt = String(snap.createdAt);
+    this._editPpnRate = Number(snap.ppnRate || 0);
     this.saleDate = formatDateDisplay(snap.saleDate || '');
     this.emit('editing');
     this.emit('saleDate');
@@ -582,6 +695,7 @@ export class SaleStore extends Emitter {
     this.editingId = null;
     this.editSeqNo = 0;
     this._editCreatedAt = '';
+    this._editPpnRate = null;
     this.emit('editing');
     this.emit('saleDate');
     this.emit('structure');
@@ -638,7 +752,7 @@ export class SaleStore extends Emitter {
     }
 
     if (total <= 0) return;
-    await this._ledger.logSale(total, items, saleDate);
+    await this._ledger.logSale(total, items, saleDate, this.ppnRate);
     this._resetItems();
     this.emit('completed');
   }

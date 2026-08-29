@@ -13,6 +13,7 @@ import {
   el,
   icon,
   openMenu,
+  plural,
   promptName,
 } from './common.js';
 import { tweenNumber } from './tween.js';
@@ -26,7 +27,6 @@ export class LedgerPane {
     this.refs = refs;
     this.onToast = onToast;
     this.prevCount = 0;
-    this.menuRow = -1;
 
     this.todayTween = tweenNumber((v) => {
       this.refs.kpiToday.textContent = this.settings.money(v);
@@ -69,8 +69,7 @@ export class LedgerPane {
   renderKpis({ animate = true } = {}) {
     const { ledger, refs } = this;
     refs.kpiCount.textContent = String(ledger.count);
-    refs.tabLedgerCount.textContent =
-      ledger.count === 1 ? '1 sale' : `${ledger.count} sales`;
+    refs.tabLedgerCount.textContent = plural(ledger.count, 'sale');
     this.todayTween.set(ledger.todayTotal, { animate });
     this.runningTween.set(ledger.runningTotal, { animate });
     const empty = ledger.count === 0;
@@ -120,7 +119,7 @@ export class LedgerPane {
         el('span', { class: 'log-row__seq', text: `No. ${record.seqNo}` }),
         el('span', {
           class: 'log-row__items',
-          text: `${record.itemCount} ${record.itemCount === 1 ? 'item' : 'items'}`,
+          text: plural(record.itemCount, 'item'),
         }),
       ]),
       el('span', {
@@ -166,7 +165,7 @@ export class LedgerPane {
    */
   async copyAmounts() {
     const text = this.ledger.amountsText();
-    const n = this.ledger.count;
+    const copied = plural(this.ledger.count, 'amount');
     let ok = false;
     try {
       if (navigator.clipboard?.writeText && window.isSecureContext) {
@@ -178,9 +177,7 @@ export class LedgerPane {
     }
     if (!ok) ok = legacyCopy(text);
     this.onToast(
-      ok
-        ? `Copied ${n} ${n === 1 ? 'amount' : 'amounts'}`
-        : 'Could not copy — select and copy manually'
+      ok ? `Copied ${copied}` : 'Could not copy — select and copy manually'
     );
   }
 
@@ -197,46 +194,50 @@ export class LedgerPane {
 
   openLogMenu() {
     const { logs } = this;
-    const items = logs.logs.map((log) => ({
-      label: `${log.id === logs.currentLogId ? '✓  ' : '     '}${log.name}`,
-      current: log.id === logs.currentLogId,
-      onSelect: () => logs.selectLog(log.id),
-    }));
-    items.push({ separator: true });
-    items.push({
-      label: 'New log…',
-      onSelect: async () => {
-        const name = await promptName({ title: 'New log' });
-        if (name) await logs.createLog(name);
+    openMenu(this.refs.logPicker, [
+      ...logs.logs.map((log) => ({
+        label: `${log.id === logs.currentLogId ? '✓  ' : '     '}${log.name}`,
+        current: log.id === logs.currentLogId,
+        onSelect: () => logs.selectLog(log.id),
+      })),
+      { separator: true },
+      {
+        label: 'New log…',
+        onSelect: async () => {
+          const name = await promptName({ title: 'New log' });
+          if (name) await logs.createLog(name);
+        },
       },
-    });
-    items.push({
-      label: 'Rename…',
-      onSelect: async () => {
-        const name = await promptName({
-          title: 'Rename log',
-          value: logs.currentLogName,
-        });
-        if (name) await logs.renameLog(logs.currentLogId, name);
+      {
+        label: 'Rename…',
+        onSelect: async () => {
+          const name = await promptName({
+            title: 'Rename log',
+            value: logs.currentLogName,
+          });
+          if (name) await logs.renameLog(logs.currentLogId, name);
+        },
       },
-    });
-    items.push({
-      label: 'Delete log',
-      danger: true,
-      // Always keep at least one log alive.
-      disabled: logs.count <= 1,
-      onSelect: async () => {
-        const ok = await confirmAction({
-          title: `Delete "${logs.currentLogName}"?`,
-          body:
-            'This permanently deletes the log and every sale logged in it. ' +
-            'This cannot be undone.',
-          okLabel: 'Delete log',
-        });
-        if (ok) await logs.deleteLog(logs.currentLogId);
+      {
+        label: 'Delete log',
+        danger: true,
+        // Always keep at least one log alive.
+        disabled: logs.count <= 1,
+        onSelect: () => this.confirmDeleteLog(),
       },
+    ]);
+  }
+
+  async confirmDeleteLog() {
+    const { logs } = this;
+    const ok = await confirmAction({
+      title: `Delete "${logs.currentLogName}"?`,
+      body:
+        'This permanently deletes the log and every sale logged in it. ' +
+        'This cannot be undone.',
+      okLabel: 'Delete log',
     });
-    openMenu(this.refs.logPicker, items);
+    if (ok) await logs.deleteLog(logs.currentLogId);
   }
 
   openRowMenu(anchor, index, record) {
