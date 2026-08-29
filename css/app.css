@@ -148,6 +148,14 @@ button {
   display: none;
 }
 
+.numpad {
+  /* The pad's row rhythm, in one place. It sets the grid's row height,
+     and the keys take their size from the row rather than carrying a
+     min-height of their own — so no cell can stretch a row, whatever it
+     holds. Short screens override just this. */
+  --np-key-h: 46px;
+}
+
 /* Small triangle sitting on the Grand Total's own line, hard right.
    Only appears once the pad is available (i.e. on touch). */
 .app[data-numpad] .numpad-toggle {
@@ -263,6 +271,11 @@ button {
     'k4 k5 k6  ctx'
     'k1 k2 k3  ent'
     'k0 k0 dot ent';
+  /* Every row exactly one key tall. Without this the rows size to their
+     content, and a single taller cell — the split sign key was one —
+     stretches the whole row out of step with the rest. Enter spans two
+     rows and picks up both plus the gap on its own. */
+  grid-template-rows: repeat(4, var(--np-key-h));
   gap: var(--space-xs);
   max-width: 520px;
   margin: 0 auto;
@@ -272,9 +285,6 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Comfortably above the 44px touch minimum, and short enough that four
-     rows still leave the item list usable on a 568px-tall phone. */
-  min-height: 46px;
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
   color: var(--text-primary);
@@ -307,9 +317,9 @@ button {
    its own triangle. */
 .np-split {
   position: relative;
-  /* Same touch floor and outline the other util keys carry. They sit on
-     the wrapper because a polygon clip would square off the rounding. */
-  min-height: 46px;
+  /* The outline the other util keys carry. It sits on the wrapper
+     because a polygon clip would square off the rounding. The height
+     comes from the grid row, like every other key. */
   border-radius: var(--radius-sm);
   border: 1px solid var(--divider);
   overflow: hidden;
@@ -347,12 +357,14 @@ button {
 /* The 2px inset on each polygon leaves a hairline of the pad showing
    between them — that gap is the dividing line. */
 .np-split__half--plus {
+  -webkit-clip-path: polygon(2px 0, 100% 0, 100% calc(100% - 2px));
   clip-path: polygon(2px 0, 100% 0, 100% calc(100% - 2px));
   align-items: flex-start;
   justify-content: flex-end;
 }
 
 .np-split__half--minus {
+  -webkit-clip-path: polygon(0 2px, 0 100%, calc(100% - 2px) 100%);
   clip-path: polygon(0 2px, 0 100%, calc(100% - 2px) 100%);
   align-items: flex-end;
   justify-content: flex-start;
@@ -1545,8 +1557,11 @@ dialog.centered {
 /* Short screens (an iPhone SE, or any phone in landscape) have to fit the
    pad and still show line items, so tighten the keys. */
 @media (max-height: 700px) {
+  .numpad {
+    --np-key-h: 38px;
+  }
+
   .np-key {
-    min-height: 38px;
     font-size: 19px;
   }
 
