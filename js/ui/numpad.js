@@ -28,7 +28,10 @@ const LAYOUT = [
   { label: '4', area: 'k4', ch: '4' },
   { label: '5', area: 'k5', ch: '5' },
   { label: '6', area: 'k6', ch: '6' },
-  { label: '', area: 'ctx', action: 'context', util: true, aria: 'Extra symbol' },
+  // One cell, two triangular keys: + upper-right, − lower-left. Both are
+  // always present; whichever the focused field would refuse greys out.
+  { label: '+', area: 'ctx', ch: '+', half: 'plus', util: true, aria: 'Plus' },
+  { label: '−', area: 'ctx', ch: '-', half: 'minus', util: true, aria: 'Minus' },
   { label: '1', area: 'k1', ch: '1' },
   { label: '2', area: 'k2', ch: '2' },
   { label: '3', area: 'k3', ch: '3' },
@@ -51,37 +54,29 @@ const NAV = [
   { dir: 'right', rotate: 90, aria: 'Next field' },
 ];
 
-/**
- * The non-digit character each field accepts, offered on the context
- * key. Qty gets the leading minus so returns and refunds can still be
- * entered on a phone. Price takes digits only, so the key is disabled.
- * Discount is decided per keystroke — see discountContext.
- */
-const CONTEXT_KEY = {
-  qty: { label: '−', ch: '-' },
-  price: null,
-};
+// The two signs, and where each sits in the split cell.
+const SIGN_KEYS = [
+  ['plus', '+'],
+  ['minus', '-'],
+];
 
-const PLUS = { label: '+', ch: '+' };
-const MINUS = { label: '−', ch: '-' };
-
-/**
- * The discount chain needs two characters and there is only one key, so
- * it offers whichever is meaningful where the caret sits: at the start
- * of a term a sign is (a negative percent being a surcharge), and
- * anywhere else a separator is. The label updates as you type, so what
- * the key will insert is always what it shows.
- */
-function discountContext(field) {
-  const upToCaret = field.value.slice(0, field.selectionStart ?? field.value.length);
-  const text = upToCaret.trimEnd();
-  return text === '' || text.endsWith('+') ? MINUS : PLUS;
+/** What the field would hold if `ch` were typed at the caret. */
+function textWithInsert(field, ch) {
+  const start = field.selectionStart ?? field.value.length;
+  const end = field.selectionEnd ?? start;
+  return field.value.slice(0, start) + ch + field.value.slice(end);
 }
 
-/** The context key for whichever field the pad is pointed at. */
-function contextFor(field) {
-  if (field.dataset.area === 'disc') return discountContext(field);
-  return CONTEXT_KEY[field.dataset.area] ?? null;
+/**
+ * Would the field hold `text` after a keystroke?
+ *
+ * Its own pattern decides — the same one a typed character is checked
+ * against — so a key greys out exactly when pressing it would do
+ * nothing, and neither Qty's leading-minus rule nor the discount chain's
+ * alphabet has to be restated here.
+ */
+function accepted(field, text) {
+  return !field._pattern || field._pattern.test(text);
 }
 
 const FIELD_SELECTOR = '.item-row .input';
@@ -146,10 +141,15 @@ export class Numpad {
       }
     });
 
-    // The discount key's meaning depends on where the caret is, so keep
-    // it in step with every edit — from this pad or a real keyboard.
+    // Which signs are live depends on the text *and* on where the caret
+    // is, so keep them in step with every edit — from this pad or a real
+    // keyboard — and with every move of the caret itself, which a tap or
+    // the navigation strip can do without changing a character.
     document.addEventListener('input', (e) => {
-      if (e.target === this.field) this.renderContextKey();
+      if (e.target === this.field) this.renderSignKeys();
+    });
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement === this.field) this.renderSignKeys();
     });
 
     this.renderToggle();
@@ -190,15 +190,19 @@ export class Numpad {
 
   buildKeys() {
     const pad = el('div', { class: 'numpad__keys' });
+    // Grid cells shared by two halves get a wrapper: it carries the
+    // rounded outline, which a triangular clip would square off.
+    const splits = new Map();
     for (const key of LAYOUT) {
       const classes = ['np-key'];
-      if (key.util) classes.push('np-key--util');
+      if (key.half) classes.push('np-split__half', `np-split__half--${key.half}`);
+      else if (key.util) classes.push('np-key--util');
       if (key.enter) classes.push('np-key--enter');
       const button = el('button', {
         class: classes.join(' '),
         type: 'button',
         tabindex: '-1',
-        style: `grid-area: ${key.area}`,
+        style: key.half ? false : `grid-area: ${key.area}`,
         text: key.label,
         'aria-label': key.aria || key.label,
       });
@@ -206,8 +210,22 @@ export class Numpad {
       // on press and the caret (and the whole Enter flow) would be lost.
       button.addEventListener('pointerdown', (e) => e.preventDefault());
       button.addEventListener('click', () => this.press(key));
-      this.keys.set(key.area, button);
-      pad.append(button);
+      this.keys.set(key.half || key.area, button);
+
+      if (!key.half) {
+        pad.append(button);
+        continue;
+      }
+      let split = splits.get(key.area);
+      if (!split) {
+        split = el('div', {
+          class: 'np-split',
+          style: `grid-area: ${key.area}`,
+        });
+        splits.set(key.area, split);
+        pad.append(split);
+      }
+      split.append(button);
     }
     return pad;
   }
@@ -251,20 +269,29 @@ export class Numpad {
     this.field = field;
     this.lastField = field;
 
-    this.renderContextKey();
+    this.renderSignKeys();
 
     // The list just got shorter; setOpen keeps the focused row in view.
     this.setOpen(true);
   }
 
-  /** Repaint the context key for the current field and caret. */
-  renderContextKey() {
-    if (!this.field) return;
-    const context = contextFor(this.field);
-    const button = this.keys.get('ctx');
-    button.textContent = context ? context.label : '';
-    button.disabled = !context;
-    this.context = context;
+  /**
+   * Grey out a sign this field would not take where the caret is.
+   *
+   * Asked of the field's own pattern, so a live key always inserts and a
+   * grey one never would: on Qty the minus is live only at the start
+   * (a leading minus being a return), on Price neither sign is, and a
+   * discount chain takes both.
+   */
+  renderSignKeys() {
+    const field = this.field;
+    if (!field) return;
+    for (const [name, ch] of SIGN_KEYS) {
+      const button = this.keys.get(name);
+      if (button) {
+        button.disabled = !accepted(field, textWithInsert(field, ch));
+      }
+    }
   }
 
   detach() {
@@ -335,22 +362,17 @@ export class Numpad {
       this.backspace();
       return;
     }
-    if (key.action === 'context') {
-      if (this.context) this.insert(this.context.ch);
-      return;
-    }
     this.insert(key.ch);
   }
 
   /** Insert at the caret, replacing any selection. */
   insert(ch) {
     const field = this.field;
+    const next = textWithInsert(field, ch);
+    // Reject exactly what a keystroke would — and exactly what greyed the
+    // key out, since both go through accepted().
+    if (!accepted(field, next)) return;
     const start = field.selectionStart ?? field.value.length;
-    const end = field.selectionEnd ?? start;
-    const next = field.value.slice(0, start) + ch + field.value.slice(end);
-    // Reject exactly what a keystroke would: the field's own pattern is
-    // the single source of truth for what it accepts.
-    if (field._pattern && !field._pattern.test(next)) return;
     this.commit(next, start + ch.length);
   }
 
@@ -386,6 +408,6 @@ export class Numpad {
     field.dataset.prev = text;
     field.setSelectionRange(caret, caret);
     field.dispatchEvent(new Event('input', { bubbles: true }));
-    this.renderContextKey();
+    this.renderSignKeys();
   }
 }

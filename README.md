@@ -68,7 +68,7 @@ It replaces the tab bar while open, the way a system keyboard would.
 ```
 ◀   ▲/▼   ▶
 7 8 9  ⌫
-4 5 6  ±
+4 5 6  ⧄     <- one cell, two keys: − and +
 1 2 3  ⏎
 0 0 .  ⏎
 ```
@@ -82,12 +82,30 @@ Backspace deletes a character, and once the field is empty it steps back
 to the previous one, following whichever entry flow is set (it reuses
 Shift+Enter's rule rather than restating it).
 
-The fourth-column key adapts to the focused field, offering the
-non-digit character that field accepts: `−` on Qty (so returns and
-refunds are still enterable) and nothing on Price, which takes digits
-only. Discount needs both `+` and `−` and has one key, so it offers
-whichever is meaningful where the caret sits — a sign at the start of a
-term, a separator anywhere else — relabelling as you type.
+The fourth-column cell holds **two** keys, divided corner to corner: `−`
+in the lower-left triangle, `+` in the upper-right. `clip-path` clips
+hit-testing as well as paint, so each half only answers taps inside its
+own triangle, and the hairline between them is the gap the two clips
+leave.
+
+It used to be one key that guessed which sign you meant from where the
+caret sat, because the discount chain needs both `+` (the separator) and
+`−` (a negative percent, i.e. a surcharge) and there was only one key to
+offer them on. Two keys say what they insert, so the guessing is gone.
+
+A half greys out when the focused field would not take it, asked of that
+field's own validator — the same one a typed character is checked
+against — so a live key always inserts and a grey one never would:
+
+| Field | `−` | `+` |
+| --- | --- | --- |
+| Qty | at the start only, for returns and refunds | never |
+| Price | never — digits only | never |
+| Discount | anywhere | anywhere |
+
+Because that depends on the caret and not just the text, the pad also
+listens for `selectionchange`: moving the caret with a tap or the
+navigation strip re-checks both halves without changing a character.
 
 Keys write through the same path a keystroke takes — validate against
 the field's own pattern, set, dispatch `input` — and Enter dispatches a

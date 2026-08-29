@@ -301,6 +301,63 @@ button {
   opacity: 0.3;
 }
 
+/* The sign key is two triangles sharing one cell: + upper-right, −
+   lower-left, divided top-left to bottom-right. clip-path clips
+   hit-testing as well as paint, so each half only answers taps inside
+   its own triangle. */
+.np-split {
+  position: relative;
+  /* Same touch floor and outline the other util keys carry. They sit on
+     the wrapper because a polygon clip would square off the rounding. */
+  min-height: 46px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--divider);
+  overflow: hidden;
+  /* The dividing line itself. Painted on the wrapper, under the halves,
+     so it survives a half's pressed tint — the clip leaves it a gap to
+     show through. `to top right` is what puts the gradient's midpoint
+     line through the top-left and bottom-right corners: the keyword
+     names the axis, and the transition runs across it. */
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 0.5px),
+    var(--divider) calc(50% - 0.5px),
+    var(--divider) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+}
+
+.np-split__half {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  /* Pull the glyph off the diagonal and into its own triangle. */
+  padding: 4px 8px;
+  font-size: 20px;
+}
+
+.np-split__half:disabled {
+  opacity: 0.3;
+}
+
+/* The 2px inset on each polygon leaves a hairline of the pad showing
+   between them — that gap is the dividing line. */
+.np-split__half--plus {
+  clip-path: polygon(2px 0, 100% 0, 100% calc(100% - 2px));
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.np-split__half--minus {
+  clip-path: polygon(0 2px, 0 100%, calc(100% - 2px) 100%);
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+
 .np-key--enter {
   background: var(--accent);
   color: var(--on-accent);
