@@ -49,6 +49,8 @@ const refs = {
   logName: $('#logName'),
   copyBtn: $('#copyBtn'),
   clearLogBtn: $('#clearLogBtn'),
+  printBtn: $('#printBtn'),
+  saleClearLogBtn: $('#saleClearLogBtn'),
   kpiCount: $('#kpiCount'),
   kpiToday: $('#kpiToday'),
   logScroll: $('#logScroll'),

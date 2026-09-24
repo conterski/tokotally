@@ -406,7 +406,8 @@ button {
   background: var(--hover);
 }
 
-.btn:disabled {
+.btn:disabled,
+.icon-btn:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -459,7 +460,7 @@ button {
   transition: background-color var(--anim-fast);
 }
 
-.icon-btn:hover {
+.icon-btn:hover:not(:disabled) {
   background: var(--hover);
 }
 
@@ -1240,8 +1241,21 @@ dialog.centered {
   fill: currentColor;
 }
 
-.icon--gear {
+.icon--gear,
+.icon--trash {
   font-size: calc(20px * var(--scale));
+}
+
+/* Words at PC width, icons on phones: the phone header has room for
+   neither "Print" nor "Clear Log" beside Copy. Declared after .icon, whose
+   display: block would otherwise win. */
+.btn__icon,
+.phone-only {
+  display: none;
+}
+
+.btn__icon {
+  font-size: calc(18px * var(--scale));
 }
 
 .icon--dots {
@@ -1256,6 +1270,18 @@ dialog.centered {
 /* phone layout                                                         */
 /* ==================================================================== */
 @media (max-width: 899px) {
+  .btn__label {
+    display: none;
+  }
+
+  .btn__icon {
+    display: block;
+  }
+
+  .phone-only {
+    display: inline-flex;
+  }
+
   .app {
     /* One column: panes, then the number pad, then the tab bar. Both
        trailing rows collapse to nothing while they are display:none. */

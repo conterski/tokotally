@@ -61,6 +61,12 @@
         <circle cx="12" cy="12" r="2" />
         <circle cx="19" cy="12" r="2" />
       </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z" />
+      </symbol>
+      <symbol id="i-print" viewBox="0 0 24 24">
+        <path d="M19 8H5a3 3 0 0 0-3 3v6h4v4h12v-4h4v-6a3 3 0 0 0-3-3Zm-3 11H8v-5h8v5Zm3-7a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-1-9H6v4h12V3Z" />
+      </symbol>
       <symbol id="i-cross" viewBox="0 0 24 24">
         <path
           d="M18.3 5.7a1 1 0 0 0-1.4 0L12 10.6 7.1 5.7a1 1 0 1 0-1.4 1.4l4.9 4.9-4.9 4.9a1 1 0 1 0 1.4 1.4l4.9-4.9 4.9 4.9a1 1 0 0 0 1.4-1.4L13.4 12l4.9-4.9a1 1 0 0 0 0-1.4Z"
@@ -91,6 +97,9 @@
                 aria-label="Sale date, optional"
               />
             </div>
+            <button class="icon-btn phone-only" id="saleClearLogBtn" aria-label="Clear Log">
+              <svg class="icon icon--trash" aria-hidden="true"><use href="#i-trash" /></svg>
+            </button>
             <button class="icon-btn" id="settingsBtn" aria-label="Settings">
               <svg class="icon icon--gear" aria-hidden="true"><use href="#i-gear" /></svg>
             </button>
@@ -170,7 +179,15 @@
           </button>
           <div class="ledger-head__actions">
             <button class="btn btn--sm" id="copyBtn">Copy</button>
-            <button class="btn btn--sm" id="clearLogBtn">Clear Log</button>
+            <!-- Icons on phones, words at PC width (.btn__icon / .btn__label). -->
+            <button class="btn btn--sm" id="printBtn" aria-label="Print tape">
+              <svg class="icon btn__icon" aria-hidden="true"><use href="#i-print" /></svg>
+              <span class="btn__label">Print</span>
+            </button>
+            <button class="btn btn--sm" id="clearLogBtn" aria-label="Clear Log">
+              <svg class="icon btn__icon" aria-hidden="true"><use href="#i-trash" /></svg>
+              <span class="btn__label">Clear Log</span>
+            </button>
           </div>
         </div>
 

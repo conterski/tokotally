@@ -18,6 +18,11 @@ import {
 } from './common.js';
 import { tweenNumber } from './tween.js';
 
+// Cetak, the shop's printing app, published beside this one. It owns the
+// Bluetooth printer and the calculator-tape format; this app only hands
+// it the amounts, as the desktop build hands them to printapp.
+const TAPE_PRINTER_URL = '../cetak/';
+
 export class LedgerPane {
   constructor({ ledger, logs, sale, settings, refs, onToast }) {
     this.ledger = ledger;
@@ -41,7 +46,10 @@ export class LedgerPane {
 
     refs.logPicker.addEventListener('click', () => this.openLogMenu());
     refs.copyBtn.addEventListener('click', () => this.copyAmounts());
-    refs.clearLogBtn.addEventListener('click', () => this.confirmClearLog());
+    refs.printBtn.addEventListener('click', () => this.printTape());
+    for (const button of [refs.clearLogBtn, refs.saleClearLogBtn]) {
+      button.addEventListener('click', () => this.confirmClearLog());
+    }
 
     ledger.on('structure', (detail) => this.renderRows(detail));
     ledger.on('kpis', () => this.renderKpis());
@@ -73,8 +81,14 @@ export class LedgerPane {
     this.todayTween.set(ledger.todayTotal, { animate });
     this.runningTween.set(ledger.runningTotal, { animate });
     const empty = ledger.count === 0;
-    refs.copyBtn.disabled = empty;
-    refs.clearLogBtn.disabled = empty;
+    for (const button of [
+      refs.copyBtn,
+      refs.printBtn,
+      refs.clearLogBtn,
+      refs.saleClearLogBtn,
+    ]) {
+      button.disabled = empty;
+    }
     refs.logEmpty.classList.toggle('hidden', !empty);
   }
 
@@ -179,6 +193,24 @@ export class LedgerPane {
     this.onToast(
       ok ? `Copied ${copied}` : 'Could not copy — select and copy manually'
     );
+  }
+
+  /**
+   * Open Cetak with the logged amounts as a calculator tape, ready to print.
+   *
+   * Two decimals, not amountsText(): Cetak reads "912.673" as Indonesian
+   * thousands (912,673), and a discount chain can leave exactly that shape
+   * (1000 x 0.97^3). Two decimals can never be mistaken, and Cetak prints
+   * no more than two anyway. Same tab: the ledger lives in IndexedDB, so
+   * Back returns to it untouched.
+   */
+  printTape() {
+    const url = new URL(TAPE_PRINTER_URL, location.href);
+    url.searchParams.set(
+      'tape',
+      this.ledger.rows.map((row) => row.total.toFixed(2)).join('\n')
+    );
+    location.assign(url);
   }
 
   async confirmClearLog() {

@@ -9,7 +9,7 @@
  * plain-http LAN address the app still works; it just isn't cached.
  */
 
-const CACHE = 'tokotally-v3';
+const CACHE = 'tokotally-v4';
 
 // How long to wait for the network before falling back to the cache.
 const NETWORK_TIMEOUT = 3000;
