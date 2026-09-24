@@ -24,13 +24,16 @@ import { tweenNumber } from './tween.js';
 const TAPE_PRINTER_URL = '../cetak/';
 
 export class LedgerPane {
-  constructor({ ledger, logs, sale, settings, refs, onToast }) {
+  constructor({ ledger, logs, sale, settings, refs, onToast, onBackToSale }) {
     this.ledger = ledger;
     this.logs = logs;
     this.sale = sale;
     this.settings = settings;
     this.refs = refs;
     this.onToast = onToast;
+    // Returns the user to entering sales (the first Qty) after clearing
+    // from the Sale panel, where they were mid-entry.
+    this.onBackToSale = onBackToSale;
     this.prevCount = 0;
 
     this.todayTween = tweenNumber((v) => {
@@ -47,9 +50,11 @@ export class LedgerPane {
     refs.logPicker.addEventListener('click', () => this.openLogMenu());
     refs.copyBtn.addEventListener('click', () => this.copyAmounts());
     refs.printBtn.addEventListener('click', () => this.printTape());
-    for (const button of [refs.clearLogBtn, refs.saleClearLogBtn]) {
-      button.addEventListener('click', () => this.confirmClearLog());
-    }
+    refs.clearLogBtn.addEventListener('click', () => this.clearLog());
+    refs.saleClearLogBtn.addEventListener('click', async () => {
+      await this.clearLog();
+      this.onBackToSale();
+    });
 
     ledger.on('structure', (detail) => this.renderRows(detail));
     ledger.on('kpis', () => this.renderKpis());
@@ -213,15 +218,14 @@ export class LedgerPane {
     location.assign(url);
   }
 
-  async confirmClearLog() {
-    const ok = await confirmAction({
-      title: 'Clear the log?',
-      body:
-        'This permanently deletes every logged sale and resets the counter ' +
-        'and running total to zero.',
-      okLabel: 'Clear Log',
-    });
-    if (ok) await this.ledger.clearLog();
+  /**
+   * Empty the log at once. Undo in the toast is the safety net rather than
+   * a dialog, as for Delete and Clear Entry: one tap stays one tap, and a
+   * slip is still reversible for a few seconds.
+   */
+  async clearLog() {
+    await this.ledger.clearLog();
+    this.onToast('Log cleared', () => this.ledger.undoRemove());
   }
 
   openLogMenu() {
@@ -288,7 +292,7 @@ export class LedgerPane {
           danger: true,
           onSelect: async () => {
             await this.ledger.deleteSale(index);
-            this.onToast('Sale deleted', () => this.ledger.undoDelete());
+            this.onToast('Sale deleted', () => this.ledger.undoRemove());
           },
         },
       ],

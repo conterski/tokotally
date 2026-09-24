@@ -310,14 +310,15 @@ export class LedgerStore extends Emitter {
     this._db = db;
     this.rows = [];
     this.currentLogId = null;
-    // Stash for the delete-undo toast: {pos, record, items}.
-    this._deleted = null;
+    // What the Undo toast would put back: the sales the last delete or
+    // clear removed, each with its list position and line items.
+    this._removed = [];
   }
 
   /** Switch the ledger to show (and write to) `logId`. */
   async setLog(logId) {
     this.currentLogId = Number(logId);
-    this._deleted = null; // belonged to the log we are leaving
+    this._removed = []; // belonged to the log we are leaving
     this.rows = await this._db.allTransactions(this.currentLogId);
     // `reset` tells the view the whole list was replaced, so it should
     // jump to the newest sale rather than hold the old scroll position.
@@ -367,15 +368,21 @@ export class LedgerStore extends Emitter {
       ppnRate
     );
     this.rows.push(record); // newest at the bottom
+    // A new sale may take a number an undo would bring back (a clear
+    // restarts at 1; deleting the newest frees its number), so it
+    // retires the undo rather than risk two sales with one No.
+    this._removed = [];
     this.emit('structure', { appended: record.id });
     this.emit('kpis');
   }
 
-  /** Empty the active log entirely and reset its KPIs to zero. */
+  /** Empty the active log entirely, stashing its sales for the Undo toast. */
   async clearLog() {
+    this._removed = await Promise.all(
+      this.rows.map((_, pos) => this._snapshot(pos))
+    );
     await this._db.clearTransactions(this.currentLogId);
     this.rows = [];
-    this._deleted = null; // the undo target no longer exists
     this.emit('structure', { reset: true });
     this.emit('kpis');
   }
@@ -449,23 +456,29 @@ export class LedgerStore extends Emitter {
   /** Delete one logged sale, stashing it for the Undo toast. */
   async deleteSale(row) {
     if (!(row >= 0 && row < this.rows.length)) return;
-    const record = this.rows[row];
-    // Read the lines before the delete takes them with it.
-    const items = await this._db.getLineItems(record.id);
-    this._deleted = { pos: row, record, items };
-    await this._db.deleteTransaction(record.id);
+    this._removed = [await this._snapshot(row)];
+    await this._db.deleteTransaction(this.rows[row].id);
     this.rows.splice(row, 1);
     this.emit('structure');
     this.emit('kpis');
   }
 
-  /** Restore the most recently deleted sale (Undo in the toast). */
-  async undoDelete() {
-    if (!this._deleted) return;
-    const { pos, record, items } = this._deleted;
-    this._deleted = null;
-    await this._db.restoreTransaction(record, items);
-    this.rows.splice(Math.min(pos, this.rows.length), 0, record);
+  /** A sale as Undo needs it back. Read before the delete takes its lines. */
+  async _snapshot(pos) {
+    const record = this.rows[pos];
+    return { pos, record, items: await this._db.getLineItems(record.id) };
+  }
+
+  /** Put back what the last delete or clear removed (Undo in the toast). */
+  async undoRemove() {
+    const removed = this._removed;
+    this._removed = [];
+    if (!removed.length) return;
+    // Ascending positions, so each lands where it was.
+    for (const { pos, record, items } of removed) {
+      await this._db.restoreTransaction(record, items);
+      this.rows.splice(Math.min(pos, this.rows.length), 0, record);
+    }
     this.emit('structure');
     this.emit('kpis');
   }

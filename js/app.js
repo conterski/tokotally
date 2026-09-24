@@ -147,6 +147,7 @@ async function main() {
     settings,
     refs,
     onToast: showToast,
+    onBackToSale: () => salePane.focusCell(0, COL.QTY),
   });
   const drawer = new SettingsDrawer({
     settings,
