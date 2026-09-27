@@ -1452,12 +1452,28 @@ dialog.centered {
     height: 40px;
   }
 
-  .input--date {
-    width: calc(120px * var(--scale));
-  }
-
+  /* Titles on their own line: the date, trash, PPN and gear need the
+     whole width, and squeezed beside them the title wrapped letter by
+     letter. The date field takes whatever the three buttons leave. */
   .topstrip {
     flex-wrap: wrap;
+  }
+
+  .topstrip__titles {
+    flex-basis: 100%;
+  }
+
+  .topstrip__actions {
+    width: 100%;
+  }
+
+  .topstrip__date {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .input--date {
+    width: 100%;
   }
 
   /* --- ledger rows ------------------------------------------------ */
@@ -1554,6 +1570,12 @@ dialog.centered {
 /* Very narrow phones (a 320px iPhone SE): tighten the fixed columns so
    the flexible price column keeps a usable width. */
 @media (max-width: 360px) {
+  /* Tighter gaps between date, trash, PPN and gear so the date field
+     still holds "dd/mm/yyyy" at 320px. */
+  .topstrip__actions {
+    gap: var(--space-xs);
+  }
+
   .item-row {
     grid-template-columns:
       auto minmax(28px, 38px) auto minmax(30px, 1fr)

@@ -83,6 +83,9 @@ export class SalePane {
     const { sale, refs } = this;
 
     refs.settingsBtn.addEventListener('click', () => this.onOpenSettings());
+    refs.ppnBtn.addEventListener('click', () =>
+      this.settings.setPpnEnabled(!this.settings.ppnEnabled)
+    );
     refs.clearBtn.addEventListener('click', () => this.clearEntryWithUndo());
     refs.completeBtn.addEventListener('click', () => sale.completeSale());
 
@@ -149,6 +152,20 @@ export class SalePane {
     refs.completeBtnLabel.textContent = sale.editing
       ? 'Save Changes'
       : 'Complete Sale';
+    this.renderPpnButton();
+  }
+
+  /**
+   * PPN on the strip, beside settings: it changes from one sale to the
+   * next, so it is not buried in the dialog. Disabled while editing, where
+   * the sale keeps the rate it was logged with whatever this says.
+   */
+  renderPpnButton() {
+    const { refs, settings } = this;
+    refs.ppnBtn.textContent = settings.ppnLabel;
+    refs.ppnBtn.classList.toggle('btn--accent', settings.ppnEnabled);
+    refs.ppnBtn.setAttribute('aria-pressed', String(settings.ppnEnabled));
+    refs.ppnBtn.disabled = this.sale.editing;
   }
 
   renderSaleDate() {

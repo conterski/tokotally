@@ -85,7 +85,7 @@
             <div class="topstrip__sub" id="saleSubtitle"></div>
           </div>
           <div class="topstrip__actions">
-            <div>
+            <div class="topstrip__date">
               <label class="field-label" for="dateField">Sale date (optional)</label>
               <input
                 class="input input--date"
@@ -100,6 +100,7 @@
             <button class="icon-btn phone-only" id="saleClearLogBtn" aria-label="Clear Log">
               <svg class="icon icon--trash" aria-hidden="true"><use href="#i-trash" /></svg>
             </button>
+            <button class="btn btn--sm" id="ppnBtn" aria-pressed="false">PPN</button>
             <button class="icon-btn" id="settingsBtn" aria-label="Settings">
               <svg class="icon icon--gear" aria-hidden="true"><use href="#i-gear" /></svg>
             </button>
@@ -263,14 +264,6 @@
           </span>
         </div>
 
-        <div class="setting">
-          <span class="setting__label" id="ppnSettingLabel">PPN</span>
-          <div class="setting__control">
-            <button class="btn" id="ppnOn">On</button>
-            <button class="btn" id="ppnOff">Off</button>
-          </div>
-          <p class="setting__note" id="ppnNote"></p>
-        </div>
         <div class="setting">
           <span class="setting__label">Entry flow</span>
           <div class="setting__row">

@@ -225,7 +225,12 @@ export class LedgerPane {
    */
   async clearLog() {
     await this.ledger.clearLog();
-    this.onToast('Log cleared', () => this.ledger.undoRemove());
+    this.toastUndo('Log cleared');
+  }
+
+  /** Delete and Clear both offer the same Undo: whatever went last. */
+  toastUndo(message) {
+    this.onToast(message, () => this.ledger.undoRemove());
   }
 
   openLogMenu() {
@@ -292,7 +297,7 @@ export class LedgerPane {
           danger: true,
           onSelect: async () => {
             await this.ledger.deleteSale(index);
-            this.onToast('Sale deleted', () => this.ledger.undoRemove());
+            this.toastUndo('Sale deleted');
           },
         },
       ],

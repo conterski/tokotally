@@ -32,8 +32,6 @@ export class SettingsDrawer {
     refs.discOff.addEventListener('click', () =>
       settings.setDiscountEnabled(false)
     );
-    refs.ppnOn.addEventListener('click', () => settings.setPpnEnabled(true));
-    refs.ppnOff.addEventListener('click', () => settings.setPpnEnabled(false));
     refs.flowRow.addEventListener('click', () => settings.setEntryFlow('row'));
     refs.flowColumn.addEventListener('click', () =>
       settings.setEntryFlow('column')
@@ -95,15 +93,6 @@ export class SettingsDrawer {
     refs.themeLight.classList.toggle('btn--accent', !settings.darkMode);
     refs.discOn.classList.toggle('btn--accent', settings.discountEnabled);
     refs.discOff.classList.toggle('btn--accent', !settings.discountEnabled);
-    refs.ppnOn.classList.toggle('btn--accent', settings.ppnEnabled);
-    refs.ppnOff.classList.toggle('btn--accent', !settings.ppnEnabled);
-    // Both the heading and the note name the rate, so changing the
-    // constant relabels them without touching the markup.
-    refs.ppnSettingLabel.textContent = settings.ppnLabel;
-    refs.ppnNote.textContent =
-      `Adds ${settings.ppnLabel} to the sale, shown above the Grand Total. ` +
-      'Each sale keeps the rate it was charged at, so turning this off ' +
-      'later leaves sales already logged alone.';
     const column = settings.entryFlow === 'column';
     refs.flowRow.classList.toggle('btn--accent', !column);
     refs.flowColumn.classList.toggle('btn--accent', column);
