@@ -153,7 +153,7 @@ button {
      and the keys take their size from the row rather than carrying a
      min-height of their own — so no cell can stretch a row, whatever it
      holds. Short screens override just this. */
-  --np-key-h: 46px;
+  --np-key-h: 53px;
 }
 
 /* Small triangle sitting on the Grand Total's own line, hard right.
@@ -263,7 +263,10 @@ button {
 
 .numpad__keys {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* The right-hand column (backspace, sign, Enter) is 20% narrower than
+     an even quarter — 3/15 of the width instead of 1/4 — and the three
+     digit columns share what it gives up. */
+  grid-template-columns: 4fr 4fr 4fr 3fr;
   /* 0 takes the wide left slot with the decimal point beside it, the
      usual calculator arrangement. */
   grid-template-areas:
@@ -1628,7 +1631,7 @@ dialog.centered {
    pad and still show line items, so tighten the keys. */
 @media (max-height: 700px) {
   .numpad {
-    --np-key-h: 38px;
+    --np-key-h: 44px;
   }
 
   .np-key {
