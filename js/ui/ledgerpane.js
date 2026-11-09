@@ -51,10 +51,7 @@ export class LedgerPane {
     refs.copyBtn.addEventListener('click', () => this.copyAmounts());
     refs.printBtn.addEventListener('click', () => this.printTape());
     refs.clearLogBtn.addEventListener('click', () => this.clearLog());
-    refs.saleClearLogBtn.addEventListener('click', async () => {
-      await this.clearLog();
-      this.onBackToSale();
-    });
+    refs.saleClearLogBtn.addEventListener('click', () => this.clearLog());
 
     ledger.on('structure', (detail) => this.renderRows(detail));
     ledger.on('kpis', () => this.renderKpis());
@@ -221,11 +218,14 @@ export class LedgerPane {
   /**
    * Empty the log at once. Undo in the toast is the safety net rather than
    * a dialog, as for Delete and Clear Entry: one tap stays one tap, and a
-   * slip is still reversible for a few seconds.
+   * slip is still reversible for a few seconds. Then straight back to the
+   * first Qty, ready for the next sale (a no-op while the sale pane is
+   * hidden behind the phone's Ledger tab).
    */
   async clearLog() {
     await this.ledger.clearLog();
     this.toastUndo('Log cleared');
+    this.onBackToSale();
   }
 
   /** Delete and Clear both offer the same Undo: whatever went last. */

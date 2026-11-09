@@ -33,6 +33,7 @@ const refs = {
   saleSubtitle: $('#saleSubtitle'),
   dateField: $('#dateField'),
   settingsBtn: $('#settingsBtn'),
+  discBtn: $('#discBtn'),
   ppnBtn: $('#ppnBtn'),
   itemsScroll: $('#itemsScroll'),
   itemRows: $('#itemRows'),
@@ -102,6 +103,7 @@ function shortcutRows(entryFlow) {
         ]
       : [
           ['Enter', "Next field; on the last line's empty Price, complete the sale"],
+          ['Enter on Price', 'On line 1 with discounts on, go to its Discount'],
           ['Shift+Enter', 'Jump back to the previous field'],
         ];
   return [
@@ -144,7 +146,7 @@ async function main() {
     settings,
     refs,
     onToast: showToast,
-    onBackToSale: () => salePane.focusCell(0, COL.QTY),
+    onBackToSale: () => salePane.focusEntryQty(),
   });
   const drawer = new SettingsDrawer({
     settings,
@@ -183,6 +185,7 @@ async function main() {
   buildHelp(settings.entryFlow);
   wireTabs();
   wireShortcuts({ sale, salePane, drawer });
+  wireEntryFocus(salePane);
   applyTheme(settings);
   applyScale();
   syncViewportHeight();
@@ -226,8 +229,9 @@ function applyTheme(settings) {
  * 1100x720 design reference, clamped so type stays legible when small
  * and doesn't get cartoonish when maximised.
  *
- * Phones opt out — they get the touch-sized layout instead, which has
- * its own fixed minimums for tap targets and 16px inputs.
+ * Phones opt out — they get the touch-sized layout instead, with its own
+ * fixed minimums for tap targets. Their overall size comes from the
+ * viewport tag in index.html (PHONE_SCALE), not from here.
  */
 function applyScale() {
   const w = window.innerWidth;
@@ -308,6 +312,7 @@ function wireShortcuts({ sale, salePane, drawer }) {
       if (anyDialogOpen()) return;
       if (isMenuOpen()) {
         closeMenu();
+        salePane.focusEntryQty(); // as if a menu item had been pressed
         return;
       }
       e.preventDefault();
@@ -325,6 +330,37 @@ function wireShortcuts({ sale, salePane, drawer }) {
       else refs.helpDialog.showModal();
     }
   });
+}
+
+/**
+ * Keyboard-first: after any button press, and whenever a dialog closes,
+ * focus goes back to the Qty of the line being entered, so the next
+ * number can be typed straight away.
+ *
+ * Deferred one tick so the button's own handler (and any menu or dialog
+ * it opens) has run first; an open menu or dialog keeps its focus, and so
+ * does a text field the press left focused. The number pad's keys and its
+ * show/hide toggle are left alone — they work on the focused field, and
+ * reopening the pad the moment it is hidden would defeat the toggle.
+ */
+function wireEntryFocus(salePane) {
+  const reclaim = () =>
+    setTimeout(() => {
+      if (anyDialogOpen() || isMenuOpen()) return;
+      const active = document.activeElement;
+      if (active && active.matches('input, textarea, select')) return;
+      salePane.focusEntryQty();
+    }, 0);
+
+  document.addEventListener('click', (e) => {
+    const button = e.target.closest?.('button');
+    if (!button) return;
+    if (refs.numpad.contains(button) || button === refs.numpadToggle) return;
+    reclaim();
+  });
+  for (const dialog of document.querySelectorAll('dialog')) {
+    dialog.addEventListener('close', reclaim);
+  }
 }
 
 function inFreeTextField() {

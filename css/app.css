@@ -1452,9 +1452,9 @@ dialog.centered {
     height: 40px;
   }
 
-  /* Titles on their own line: the date, trash, PPN and gear need the
-     whole width, and squeezed beside them the title wrapped letter by
-     letter. The date field takes whatever the three buttons leave. */
+  /* Titles on their own line: the date, trash, Disc %, PPN and gear need
+     the whole width, and squeezed beside them the title wrapped letter by
+     letter. The date field takes whatever the four buttons leave. */
   .topstrip {
     flex-wrap: wrap;
   }
@@ -1463,8 +1463,16 @@ dialog.centered {
     flex-basis: 100%;
   }
 
+  /* Four buttons beside the date: tighter gaps and side padding so the
+     field still holds "dd/mm/yyyy" at 375px. The buttons keep their
+     height, so the tap targets don't shrink. */
   .topstrip__actions {
     width: 100%;
+    gap: var(--space-xs);
+  }
+
+  .topstrip__actions .btn--sm {
+    padding: 0 var(--space-xs);
   }
 
   .topstrip__date {
@@ -1567,13 +1575,27 @@ dialog.centered {
   }
 }
 
+/* Below 360px (a 320px iPhone SE) the four buttons leave the date field
+   too narrow for "dd/mm/yyyy", so it takes a row of its own above them. */
+@media (max-width: 359px) {
+  .topstrip__actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: var(--space-xs);
+  }
+
+  .topstrip__date {
+    flex-basis: 100%;
+  }
+}
+
 /* Very narrow phones (a 320px iPhone SE): tighten the fixed columns so
    the flexible price column keeps a usable width. */
 @media (max-width: 360px) {
-  /* Tighter gaps between date, trash, PPN and gear so the date field
-     still holds "dd/mm/yyyy" at 320px. */
+  /* Tighter still between date, trash, Disc %, PPN and gear so the date
+     field holds "dd/mm/yyyy" at 360px. */
   .topstrip__actions {
-    gap: var(--space-xs);
+    gap: 2px;
   }
 
   .item-row {

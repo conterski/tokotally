@@ -413,8 +413,9 @@ export class LedgerStore extends Emitter {
    * Edit a logged sale: line items plus No. and the optional date.
    *
    * The total is *derived* from the lines through the same saleTotal()
-   * a live sale uses, so it always agrees with the breakdown. A
-   * non-positive total is rejected (delete is how you remove a sale), as
+   * a live sale uses, so it always agrees with the breakdown. A zero
+   * total is rejected (delete is how you remove a sale; a negative one —
+   * a refund — is fine), as
    * is an unparseable date.
    *
    * The PPN comes from the rate stored *with this sale*, not from the
@@ -434,7 +435,7 @@ export class LedgerStore extends Emitter {
       }));
     const record = this.rows[row];
     const total = saleTotal(clean, record.ppnRate || 0);
-    if (total <= 0) return;
+    if (total === 0) return;
     await this._db.replaceLineItems(record.id, clean);
     await this._db.updateTransaction(record.id, {
       total,
@@ -717,7 +718,8 @@ export class SaleStore extends Emitter {
   /**
    * Save the current line items.
    *
-   * Composing: validate the optional date, require a positive total, hand
+   * Composing: validate the optional date, require a non-zero total (a
+   * negative one is a refund and is logged like any other), hand
    * it to the ledger, reset, and signal so the UI refocuses. The typed
    * date is kept for the next sale (batch entry per day).
    *
@@ -743,7 +745,7 @@ export class SaleStore extends Emitter {
       }));
 
     if (this.editingId !== null) {
-      if (total <= 0) return; // nothing to save; stay in edit mode
+      if (total === 0) return; // nothing to save; stay in edit mode
       const row = this._ledger.rowForTxnId(this.editingId);
       if (row < 0) {
         // The transaction vanished (deleted elsewhere): leave edit mode
@@ -764,7 +766,7 @@ export class SaleStore extends Emitter {
       return;
     }
 
-    if (total <= 0) return;
+    if (total === 0) return;
     await this._ledger.logSale(total, items, saleDate, this.ppnRate);
     this._resetItems();
     this.emit('completed');

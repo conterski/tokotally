@@ -3,13 +3,39 @@
   <head>
     <meta charset="utf-8" />
     <!-- viewport-fit=cover lets the layout reach under the notch/home bar;
-         the CSS pays it back with env(safe-area-inset-*) padding. Pinch
-         zoom is deliberately left enabled — iOS auto-zoom on focus is
-         prevented with 16px inputs instead. -->
+         the CSS pays it back with env(safe-area-inset-*) padding.
+         maximum-scale pins the zoom so focusing a field never zooms in
+         (iOS does that for any input under 16px, and the narrow-phone
+         rows use 13px). iOS still allows pinch zoom regardless. -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
     />
+    <script>
+      // Phones held upright render the whole UI at PHONE_SCALE: the layout
+      // is given a proportionally wider viewport (375px -> 441px at 0.85)
+      // and the browser shrinks it to fit, so fixed px sizes, the
+      // breakpoints and visualViewport maths all stay in one unit.
+      // Landscape and tablets keep 1:1. Runs before the body is parsed so
+      // the first paint is already at the right size.
+      (function () {
+        var PHONE_SCALE = 0.85;
+        var meta = document.querySelector('meta[name=viewport]');
+        var portrait = window.matchMedia('(orientation: portrait)');
+        function fit() {
+          var short = Math.min(screen.width, screen.height);
+          var s = short < 600 && portrait.matches ? PHONE_SCALE : 1;
+          var width = s === 1 ? 'device-width' : String(Math.round(short / s));
+          var content =
+            'width=' + width + ', initial-scale=' + s + ', minimum-scale=' + s +
+            ', maximum-scale=' + s + ', viewport-fit=cover';
+          if (meta.content !== content) meta.content = content;
+        }
+        fit();
+        if (portrait.addEventListener) portrait.addEventListener('change', fit);
+        window.addEventListener('orientationchange', fit);
+      })();
+    </script>
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0e1116" id="themeColor" />
     <meta name="description" content="TokoTally — offline sales calculator and logger." />
@@ -100,6 +126,7 @@
             <button class="icon-btn phone-only" id="saleClearLogBtn" aria-label="Clear Log">
               <svg class="icon icon--trash" aria-hidden="true"><use href="#i-trash" /></svg>
             </button>
+            <button class="btn btn--sm" id="discBtn" aria-pressed="false" aria-label="Line discounts">Disc %</button>
             <button class="btn btn--sm" id="ppnBtn" aria-pressed="false">PPN</button>
             <button class="icon-btn" id="settingsBtn" aria-label="Settings">
               <svg class="icon icon--gear" aria-hidden="true"><use href="#i-gear" /></svg>

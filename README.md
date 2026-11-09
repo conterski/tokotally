@@ -51,9 +51,15 @@ it already shows the money), and the Line Total column has a `ch`-based
 floor so figures line up across rows without ever being truncated. The
 bottom bar
 stacks its total above two full-width buttons. Touch targets are at
-least 32–46px, inputs are 16px so iOS doesn't zoom on focus, and the
-layout tracks `visualViewport` so the Grand Total and Complete Sale
-button stay above the soft keyboard.
+least 32–46px, and the layout tracks `visualViewport` so the Grand Total
+and Complete Sale button stay above the soft keyboard.
+
+Held upright, a phone renders the whole UI at 85% (`PHONE_SCALE` in the
+viewport script in `index.html`): the page gets a proportionally wider
+viewport and the browser shrinks it to fit, so every size, breakpoint and
+measurement stays in one unit. The viewport also pins the zoom, so
+tapping a field never zooms in (iOS still allows pinch zoom). Landscape
+and tablets stay at 1:1.
 
 Safe-area insets are honoured, so the notch and home indicator don't
 overlap anything.
@@ -149,7 +155,9 @@ What `Enter` does depends on **Settings → Entry flow**:
 
 **Row (Z)** — the desktop app's order, and the default. Enter walks
 Qty → Price → down to the next line, creating it as it goes; Enter on
-the last line's empty Price completes the sale.
+the last line's empty Price completes the sale. With discounts on, the
+first line also stops at its Discount (Qty → Price → Discount → line 2),
+so the chain is typed once and every line after it inherits it.
 
 **Column (N)** — enter one column at a time. Enter walks straight down
 the Qty column, appending rows as it goes. Leaving a Qty untouched and
@@ -165,6 +173,10 @@ itself to match the chosen flow.
 
 ## Discounts
 
+The **Disc %** button in the top strip, beside PPN, shows or hides the
+Discount column in one tap (the same setting as Settings → Line
+discounts).
+
 The per-line Discount field takes a `+`-separated chain of percents:
 `10+5+3` compounds to `0.9 x 0.95 x 0.97`. A **negative** percent is a
 surcharge rather than a discount — `-10` marks the line up by 10%, and
@@ -174,7 +186,9 @@ Malformed fragments are skipped rather than rejected, so a chain stays
 inert while it is half-typed: `-`, `--` and `5-3` all price as 1.0.
 
 Discount is off the Enter path — Tab or the arrows reach it — and `Enter`
-there walks straight down the Discount column. The exception is the last
+there walks straight down the Discount column. In **Row (Z)** flow the
+first line is the exception: Enter on its Price lands in its Discount,
+and Enter there moves on to line 2's Qty. So is the last
 line in **Row (Z)** flow, where there is nothing below: Enter takes the
 same step it takes on a price, starting the next line and landing in its
 Qty (and only once the line is real, so a blank one never piles up rows).

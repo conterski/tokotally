@@ -83,6 +83,9 @@ export class SalePane {
     const { sale, refs } = this;
 
     refs.settingsBtn.addEventListener('click', () => this.onOpenSettings());
+    refs.discBtn.addEventListener('click', () =>
+      this.settings.setDiscountEnabled(!this.settings.discountEnabled)
+    );
     refs.ppnBtn.addEventListener('click', () =>
       this.settings.setPpnEnabled(!this.settings.ppnEnabled)
     );
@@ -152,16 +155,20 @@ export class SalePane {
     refs.completeBtnLabel.textContent = sale.editing
       ? 'Save Changes'
       : 'Complete Sale';
-    this.renderPpnButton();
+    this.renderStripToggles();
   }
 
   /**
-   * PPN on the strip, beside settings: it changes from one sale to the
-   * next, so it is not buried in the dialog. Disabled while editing, where
-   * the sale keeps the rate it was logged with whatever this says.
+   * Discount and PPN on the strip, beside settings: they change from one
+   * sale to the next, so they are not buried in the dialog. PPN is
+   * disabled while editing, where the sale keeps the rate it was logged
+   * with whatever this says. Discount never is: it only shows or hides
+   * the column, and a line's chain counts either way.
    */
-  renderPpnButton() {
+  renderStripToggles() {
     const { refs, settings } = this;
+    refs.discBtn.classList.toggle('btn--accent', settings.discountEnabled);
+    refs.discBtn.setAttribute('aria-pressed', String(settings.discountEnabled));
     refs.ppnBtn.textContent = settings.ppnLabel;
     refs.ppnBtn.classList.toggle('btn--accent', settings.ppnEnabled);
     refs.ppnBtn.setAttribute('aria-pressed', String(settings.ppnEnabled));
@@ -184,13 +191,55 @@ export class SalePane {
     );
   }
 
-  /** Rebuild the row list. Called only on structural change. */
+  /**
+   * Rebuild the row list. Called only on structural change.
+   *
+   * Replacing the rows would drop focus on the floor (a settings toggle
+   * rebuilds them after an IndexedDB write), so a focused field is put
+   * back: the entry line's Qty stays on whatever line is now the entry
+   * line, any other field returns to the same cell, clamped to the list.
+   */
   renderRows() {
     const { sale, refs } = this;
+    const had = this.focusedCell();
     const frag = document.createDocumentFragment();
     sale.items.forEach((item, index) => frag.append(this.buildRow(item, index)));
     refs.itemRows.replaceChildren(frag);
     this.renderTotals();
+    if (had) this.restoreFocus(had);
+  }
+
+  /** The (row, area) of the focused line field, or null. */
+  focusedCell() {
+    const active = document.activeElement;
+    const row = active?.closest?.('.item-row');
+    if (!row || !this.refs.itemRows.contains(row)) return null;
+    const rows = [...this.refs.itemRows.children];
+    const index = rows.indexOf(row);
+    return {
+      index,
+      area: active.dataset.area,
+      entryQty: active.dataset.area === 'qty' && index === rows.length - 1,
+    };
+  }
+
+  restoreFocus({ index, area, entryQty }) {
+    const last = this.refs.itemRows.children.length - 1;
+    const row = entryQty ? last : Math.min(index, last);
+    const field = this.refs.itemRows.children[row]?.querySelector(
+      `[data-area='${area}']`
+    );
+    if (!field || field.offsetParent === null) return;
+    // No scroll: a caller about to move focus on (Enter appending a line)
+    // does its own, and two smooth scrolls in flight land short.
+    field.focus({ preventScroll: true });
+    field.select();
+    this.onFieldFocused(field);
+  }
+
+  /** Focus the Qty of the line being entered — the last one. */
+  focusEntryQty() {
+    this.focusCell(this.refs.itemRows.children.length - 1, COL.QTY);
   }
 
   buildRow(item, index) {
@@ -402,7 +451,10 @@ export class SalePane {
 
   /**
    * Enter in row ("Z") flow: Qty -> Price -> down to the next line, with
-   * the last line's empty Price completing the sale.
+   * the last line's empty Price completing the sale. With discounts on,
+   * the first line also stops at its Discount (Qty -> Price -> Discount)
+   * so the chain is typed once there; every line appended after it
+   * inherits it.
    */
   enterRowFlow(ctx) {
     const { index, col, isLast, item, qty, price } = ctx;
@@ -423,6 +475,8 @@ export class SalePane {
     if (col === COL.PRICE) {
       // Enter on the blank trailing line completes the sale.
       if (isLast && price.value.length === 0) this.sale.completeSale();
+      else if (index === 0 && this.settings.discountEnabled)
+        this.focusCell(0, COL.DISC);
       else this.advance(index);
       return;
     }
@@ -431,9 +485,10 @@ export class SalePane {
     // nothing below it, and in row flow that is where the next line
     // starts — so it takes the same step Enter on a price takes, which
     // appends the line only once this one is real and moves to its Qty.
-    // Either way Discount never completes the sale: that is only ever the
-    // empty trailing Price.
-    if (isLast) this.advance(index);
+    // The first line's Discount is on the Enter path, so it carries on to
+    // line 2's Qty the same way. Either way Discount never completes the
+    // sale: that is only ever the empty trailing Price.
+    if (isLast || index === 0) this.advance(index);
     else this.focusCell(index + 1, COL.DISC);
   }
 
@@ -443,7 +498,10 @@ export class SalePane {
       this.focusCell(index - 1, col);
       return;
     }
-    if (col === COL.QTY) this.focusCell(index - 1, COL.PRICE);
+    // Line 2's Qty retreats to line 1's Discount, the step Enter took.
+    if (col === COL.QTY && index === 1 && this.settings.discountEnabled)
+      this.focusCell(0, COL.DISC);
+    else if (col === COL.QTY) this.focusCell(index - 1, COL.PRICE);
     else if (col === COL.PRICE) this.focusCell(index, COL.QTY);
     else this.focusCell(index, COL.PRICE);
   }
